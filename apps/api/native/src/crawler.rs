@@ -141,15 +141,17 @@ fn get_url_depth(path: &str) -> u32 {
 
 #[inline]
 fn is_internal_link(url: &Url, base_url: &Url) -> bool {
-  let base_domain = base_url.host_str()
+  let base_domain = base_url
+    .host_str()
     .unwrap_or("")
     .trim_start_matches("www.")
     .trim();
-  let link_domain = url.host_str()
+  let link_domain = url
+    .host_str()
     .unwrap_or("")
     .trim_start_matches("www.")
     .trim();
-  
+
   link_domain == base_domain
 }
 
@@ -158,7 +160,7 @@ fn no_sections(url_str: &str) -> bool {
   if !url_str.contains('#') {
     return true;
   }
-  
+
   // Check if the hash fragment looks like a route (contains forward slashes and has substantial content)
   if let Some(hash_part) = url_str.split('#').nth(1) {
     hash_part.len() > 1 && hash_part.contains('/')
@@ -170,21 +172,32 @@ fn no_sections(url_str: &str) -> bool {
 #[inline]
 fn is_social_media_or_email(url_str: &str) -> bool {
   const SOCIAL_MEDIA_OR_EMAIL: &[&str] = &[
-    "facebook.com", "twitter.com", "linkedin.com", "instagram.com", 
-    "pinterest.com", "mailto:", "github.com", "calendly.com", 
-    "discord.gg", "discord.com"
+    "facebook.com",
+    "twitter.com",
+    "linkedin.com",
+    "instagram.com",
+    "pinterest.com",
+    "mailto:",
+    "github.com",
+    "calendly.com",
+    "discord.gg",
+    "discord.com",
   ];
-  
-  SOCIAL_MEDIA_OR_EMAIL.iter().any(|domain| url_str.contains(domain))
+
+  SOCIAL_MEDIA_OR_EMAIL
+    .iter()
+    .any(|domain| url_str.contains(domain))
 }
 
 #[inline]
 fn is_subdomain(url: &Url, base_url: &Url) -> bool {
   match (url.host_str(), base_url.host_str()) {
     (Some(link_host), Some(base_host)) => {
-      // Simple subdomain check - if the link host ends with the base host but is not equal
-      link_host != base_host && link_host.ends_with(&format!(".{}", base_host))
-    },
+      match (psl::domain_str(link_host), psl::domain_str(base_host)) {
+        (Some(link_domain), Some(base_domain)) => link_domain == base_domain,
+        _ => false,
+      }
+    }
     _ => false,
   }
 }
@@ -192,7 +205,8 @@ fn is_subdomain(url: &Url, base_url: &Url) -> bool {
 #[inline]
 fn is_external_main_page(url_str: &str) -> bool {
   if let Ok(url) = Url::parse(url_str) {
-    let path_segments: Vec<&str> = url.path_segments()
+    let path_segments: Vec<&str> = url
+      .path_segments()
       .map(|segments| segments.filter(|s| !s.is_empty()).collect())
       .unwrap_or_default();
     path_segments.is_empty()
@@ -311,16 +325,18 @@ fn _filter_links(data: FilterLinksCall) -> std::result::Result<FilterLinksResult
         continue;
       }
 
-      if is_internal_link(&initial_url, &base_url) 
-        && data.allow_external_content_links 
-        && !is_external_main_page(url_str) {
+      if is_internal_link(&initial_url, &base_url)
+        && data.allow_external_content_links
+        && !is_external_main_page(url_str)
+      {
         result_links.push(link);
         continue;
       }
 
-      if data.allow_subdomains 
-        && !is_social_media_or_email(url_str) 
-        && is_subdomain(&url, &base_url) {
+      if data.allow_subdomains
+        && !is_social_media_or_email(url_str)
+        && is_subdomain(&url, &base_url)
+      {
         result_links.push(link);
         continue;
       }
@@ -344,22 +360,20 @@ pub fn filter_links(data: FilterLinksCall) -> Result<FilterLinksResult> {
 
 fn _filter_url(data: FilterUrlCall) -> std::result::Result<FilterUrlResult, String> {
   let mut full_url = data.href.clone();
-  
+
   // Handle relative URLs
   if !data.href.starts_with("http") {
     match Url::parse(&data.url) {
-      Ok(base) => {
-        match base.join(&data.href) {
-          Ok(resolved) => full_url = resolved.to_string(),
-          Err(_) => {
-            return Ok(FilterUrlResult {
-              allowed: false,
-              url: None,
-              denial_reason: Some(URL_PARSE_ERROR.to_string()),
-            });
-          }
+      Ok(base) => match base.join(&data.href) {
+        Ok(resolved) => full_url = resolved.to_string(),
+        Err(_) => {
+          return Ok(FilterUrlResult {
+            allowed: false,
+            url: None,
+            denial_reason: Some(URL_PARSE_ERROR.to_string()),
+          });
         }
-      }
+      },
       Err(_) => {
         return Ok(FilterUrlResult {
           allowed: false,
@@ -471,9 +485,10 @@ fn _filter_url(data: FilterUrlCall) -> std::result::Result<FilterUrlResult, Stri
       }
     };
 
-    if is_internal_link(&context_url, &base_url) 
-      && data.allow_external_content_links 
-      && !is_external_main_page(url_str) {
+    if is_internal_link(&context_url, &base_url)
+      && data.allow_external_content_links
+      && !is_external_main_page(url_str)
+    {
       return Ok(FilterUrlResult {
         allowed: true,
         url: Some(full_url),
@@ -481,9 +496,8 @@ fn _filter_url(data: FilterUrlCall) -> std::result::Result<FilterUrlResult, Stri
       });
     }
 
-    if data.allow_subdomains 
-      && !is_social_media_or_email(url_str) 
-      && is_subdomain(&url, &base_url) {
+    if data.allow_subdomains && !is_social_media_or_email(url_str) && is_subdomain(&url, &base_url)
+    {
       return Ok(FilterUrlResult {
         allowed: true,
         url: Some(full_url),
