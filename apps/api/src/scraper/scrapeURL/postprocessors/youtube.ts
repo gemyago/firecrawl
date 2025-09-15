@@ -47,9 +47,20 @@ export const youtubePostprocessor: Postprocessor = {
     let preferredCaptionMarkdown = "";
 
     if (engineResult.youtubeTranscriptContent) {
+      const initialSegments =
+        engineResult.youtubeTranscriptContent?.actions?.[0]
+          ?.updateEngagementPanelAction?.content?.transcriptRenderer?.content
+          ?.transcriptSearchPanelRenderer?.body?.transcriptSegmentListRenderer
+          ?.initialSegments ?? [];
+      const transcriptText = (
+        Array.isArray(initialSegments) ? initialSegments : []
+      )
+        .map(x => x?.transcriptSegmentRenderer?.snippet?.runs?.[0]?.text)
+        .filter(Boolean)
+        .join(" ");
       preferredCaptionMarkdown = `## Transcript
 
-${engineResult.youtubeTranscriptContent.actions[0].updateEngagementPanelAction.content.transcriptRenderer.content.transcriptSearchPanelRenderer.body.transcriptSegmentListRenderer.initialSegments.map(x => x.transcriptSegmentRenderer.snippet.runs[0].text).join(" ")}
+${transcriptText}
 `;
     }
 
