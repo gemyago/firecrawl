@@ -152,8 +152,12 @@ function buildFeatureFlags(
     flags.add("pdf");
   }
 
-  if (urlO.pathname.endsWith(".docx")) {
-    flags.add("docx");
+  if (
+    urlO.pathname.endsWith(".docx") ||
+    urlO.pathname.endsWith(".odt") ||
+    urlO.pathname.endsWith(".rtf")
+  ) {
+    flags.add("document");
   }
 
   if (options.blockAds === false) {
