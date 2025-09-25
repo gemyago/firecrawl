@@ -40,10 +40,10 @@ function prepareExtractPayload(args: {
   return body;
 }
 
-export async function startExtract(http: HttpClient, args: Parameters<typeof prepareExtractPayload>[0]): Promise<ExtractResponse> {
+export async function startExtract(http: HttpClient, args: Parameters<typeof prepareExtractPayload>[0] & { timeout?: number }): Promise<ExtractResponse> {
   const payload = prepareExtractPayload(args);
   try {
-    const res = await http.post<ExtractResponse>("/v2/extract", payload);
+    const res = await http.post<ExtractResponse>("/v2/extract", payload, undefined, args.timeout);
     if (res.status !== 200) throwForBadResponse(res, "extract");
     return res.data;
   } catch (err: any) {

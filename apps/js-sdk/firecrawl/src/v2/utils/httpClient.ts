@@ -40,11 +40,15 @@ export class HttpClient {
     return this.apiKey;
   }
 
-  private async request<T = any>(config: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  private async request<T = any>(config: AxiosRequestConfig, timeoutMs?: number): Promise<AxiosResponse<T>> {
     const version = getVersion();
     config.headers = {
       ...(config.headers || {}),
     };
+
+    if (timeoutMs !== undefined) {
+      config.timeout = timeoutMs;
+    }
 
     let lastError: any;
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
@@ -78,16 +82,16 @@ export class HttpClient {
     return new Promise((r) => setTimeout(r, seconds * 1000));
   }
 
-  post<T = any>(endpoint: string, body: Record<string, unknown>, headers?: Record<string, string>) {
-    return this.request<T>({ method: "post", url: endpoint, data: body, headers });
+  post<T = any>(endpoint: string, body: Record<string, unknown>, headers?: Record<string, string>, timeoutMs?: number) {
+    return this.request<T>({ method: "post", url: endpoint, data: body, headers }, timeoutMs);
   }
 
-  get<T = any>(endpoint: string, headers?: Record<string, string>) {
-    return this.request<T>({ method: "get", url: endpoint, headers });
+  get<T = any>(endpoint: string, headers?: Record<string, string>, timeoutMs?: number) {
+    return this.request<T>({ method: "get", url: endpoint, headers }, timeoutMs);
   }
 
-  delete<T = any>(endpoint: string, headers?: Record<string, string>) {
-    return this.request<T>({ method: "delete", url: endpoint, headers });
+  delete<T = any>(endpoint: string, headers?: Record<string, string>, timeoutMs?: number) {
+    return this.request<T>({ method: "delete", url: endpoint, headers }, timeoutMs);
   }
 
   prepareHeaders(idempotencyKey?: string): Record<string, string> {

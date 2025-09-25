@@ -13,7 +13,7 @@ export async function scrape(http: HttpClient, url: string, options?: ScrapeOpti
   if (options) Object.assign(payload, options);
 
   try {
-    const res = await http.post<{ success: boolean; data?: Document; error?: string }>("/v2/scrape", payload);
+    const res = await http.post<{ success: boolean; data?: Document; error?: string }>("/v2/scrape", payload, undefined, options?.timeout);
     if (res.status !== 200 || !res.data?.success) {
       throwForBadResponse(res, "scrape");
     }

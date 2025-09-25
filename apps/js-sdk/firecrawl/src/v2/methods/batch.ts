@@ -40,7 +40,7 @@ export async function startBatchScrape(
 
   try {
     const headers = http.prepareHeaders(idempotencyKey);
-    const res = await http.post<{ success: boolean; id: string; url: string; invalidURLs?: string[]; error?: string }>("/v2/batch/scrape", payload, headers);
+    const res = await http.post<{ success: boolean; id: string; url: string; invalidURLs?: string[]; error?: string }>("/v2/batch/scrape", payload, headers, options?.timeout);
     if (res.status !== 200 || !res.data?.success) throwForBadResponse(res, "start batch scrape");
     return { id: res.data.id, url: res.data.url, invalidURLs: res.data.invalidURLs || undefined };
   } catch (err: any) {
