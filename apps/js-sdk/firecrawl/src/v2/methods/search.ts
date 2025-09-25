@@ -53,7 +53,7 @@ function transformArray<ResultType>(arr: any[]): Array<ResultType | Document> {
 export async function search(http: HttpClient, request: SearchRequest): Promise<SearchData> {
   const payload = prepareSearchPayload(request);
   try {
-    const res = await http.post<{ success: boolean; data?: Record<string, unknown>; error?: string }>("/v2/search", payload, undefined, request.timeout);
+    const res = await http.post<{ success: boolean; data?: Record<string, unknown>; error?: string }>("/v2/search", payload, undefined, request.timeout, request.waitFor, request.actions);
     if (res.status !== 200 || !res.data?.success) {
       throwForBadResponse(res, "search");
     }

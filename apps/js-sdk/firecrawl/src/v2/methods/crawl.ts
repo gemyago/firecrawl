@@ -45,7 +45,7 @@ function prepareCrawlPayload(request: CrawlRequest): Record<string, unknown> {
 export async function startCrawl(http: HttpClient, request: CrawlRequest): Promise<CrawlResponse> {
   const payload = prepareCrawlPayload(request);
   try {
-    const res = await http.post<{ success: boolean; id: string; url: string; error?: string }>("/v2/crawl", payload, undefined, request.scrapeOptions?.timeout);
+    const res = await http.post<{ success: boolean; id: string; url: string; error?: string }>("/v2/crawl", payload, undefined, request.scrapeOptions?.timeout, request.scrapeOptions?.waitFor, request.scrapeOptions?.actions);
     if (res.status !== 200 || !res.data?.success) {
       throwForBadResponse(res, "start crawl");
     }

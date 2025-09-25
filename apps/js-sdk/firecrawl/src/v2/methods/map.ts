@@ -20,7 +20,7 @@ function prepareMapPayload(url: string, options?: MapOptions): Record<string, un
 export async function map(http: HttpClient, url: string, options?: MapOptions): Promise<MapData> {
   const payload = prepareMapPayload(url, options);
   try {
-    const res = await http.post<{ success: boolean; error?: string; links?: Array<string | SearchResultWeb> }>("/v2/map", payload, undefined, options?.timeout);
+    const res = await http.post<{ success: boolean; error?: string; links?: Array<string | SearchResultWeb> }>("/v2/map", payload, undefined, options?.timeout, options?.waitFor, options?.actions);
     if (res.status !== 200 || !res.data?.success) {
       throwForBadResponse(res, "map");
     }

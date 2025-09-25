@@ -131,6 +131,7 @@ export interface CrawlScrapeOptions {
   storeInCache?: boolean;
   maxAge?: number;
   parsePDF?: boolean;
+  actions?: Action[];
 }
 
 export type Action = {
@@ -242,6 +243,8 @@ export interface CrawlParams {
    * Timeout in milliseconds for the HTTP request.
    */
   timeout?: number;
+  waitFor?: number;
+  actions?: Action[];
 }
 
 /**
@@ -310,6 +313,8 @@ export interface MapParams {
   timeout?: number;
   useIndex?: boolean;
   location?: LocationConfig;
+  waitFor?: number;
+  actions?: Action[];
 }
 
 /**
@@ -407,6 +412,8 @@ export interface SearchParams {
   origin?: string;
   timeout?: number;
   scrapeOptions?: ScrapeParams;
+  waitFor?: number;
+  actions?: Action[];
 }
 
 /**
@@ -821,7 +828,9 @@ export default class FirecrawlApp {
         this.apiUrl + `/v1/search`,
         jsonData,
         headers,
-        params?.timeout
+        params?.timeout,
+        params?.waitFor,
+        params?.actions
       );
 
       if (response.status === 200) {
@@ -869,7 +878,9 @@ export default class FirecrawlApp {
         this.apiUrl + `/v1/crawl`,
         jsonData,
         headers,
-        params?.timeout
+        params?.timeout,
+        params?.waitFor,
+        params?.actions
       );
       if (response.status === 200) {
         const id: string = response.data.id;
@@ -899,7 +910,9 @@ export default class FirecrawlApp {
         this.apiUrl + `/v1/crawl`,
         jsonData,
         headers,
-        params?.timeout
+        params?.timeout,
+        params?.waitFor,
+        params?.actions
       );
       if (response.status === 200) {
         return response.data;
@@ -1077,7 +1090,9 @@ export default class FirecrawlApp {
         this.apiUrl + `/v1/map`,
         jsonData,
         headers,
-        params?.timeout
+        params?.timeout,
+        params?.waitFor,
+        params?.actions
       );
       if (response.status === 200) {
         return response.data as MapResponse;
@@ -1150,7 +1165,9 @@ export default class FirecrawlApp {
         this.apiUrl + `/v1/batch/scrape`,
         jsonData,
         headers,
-        params?.timeout
+        params?.timeout,
+        params?.waitFor,
+        params?.actions
       );
       if (response.status === 200) {
         const id: string = response.data.id;
@@ -1182,7 +1199,9 @@ export default class FirecrawlApp {
         this.apiUrl + `/v1/batch/scrape`,
         jsonData,
         headers,
-        params?.timeout
+        params?.timeout,
+        params?.waitFor,
+        params?.actions
       );
       if (response.status === 200) {
         return response.data;
@@ -1355,7 +1374,9 @@ export default class FirecrawlApp {
         this.apiUrl + `/v1/extract`,
         { ...jsonData, schema: jsonSchema, origin: `js-sdk@${this.version}` },
         headers,
-        params?.timeout
+        params?.timeout,
+        params?.scrapeOptions?.waitFor,
+        params?.scrapeOptions?.actions
       );
 
       if (response.status === 200) {
@@ -1428,7 +1449,9 @@ export default class FirecrawlApp {
         this.apiUrl + `/v1/extract`,
         { ...jsonData, schema: jsonSchema, origin: `js-sdk@${this.version}` },
         headers,
-        params?.timeout
+        params?.timeout,
+        params?.scrapeOptions?.waitFor,
+        params?.scrapeOptions?.actions
       );
 
       if (response.status === 200) {
@@ -1478,20 +1501,45 @@ export default class FirecrawlApp {
   }
 
   /**
+   * Calculate total wait time including waitFor and action wait times
+   */
+  private calculateTotalWaitTime(actions: any[] = [], waitFor: number = 0): number {
+    const actionWaitTime = actions.reduce((acc, action) => {
+      if (action.type === "wait") {
+        if (action.milliseconds) {
+          return acc + action.milliseconds;
+        }
+        if (action.selector) {
+          return acc + 1000;
+        }
+      }
+      return acc;
+    }, 0);
+    
+    return waitFor + actionWaitTime;
+  }
+
+  /**
    * Sends a POST request to the specified URL.
    * @param url - The URL to send the request to.
    * @param data - The data to send in the request.
    * @param headers - The headers for the request.
    * @param timeout - Optional timeout in milliseconds.
+   * @param waitFor - Optional waitFor time in milliseconds.
+   * @param actions - Optional actions array that may contain wait actions.
    * @returns The response from the POST request.
    */
   postRequest(
     url: string,
     data: any,
     headers: AxiosRequestHeaders,
-    timeout?: number
+    timeout?: number,
+    waitFor?: number,
+    actions?: any[]
   ): Promise<AxiosResponse> {
-    return axios.post(url, data, { headers, timeout: timeout ? (timeout + 5000) : undefined });
+    const totalWaitTime = this.calculateTotalWaitTime(actions, waitFor);
+    const finalTimeout = timeout !== undefined ? (timeout + totalWaitTime + 5000) : undefined;
+    return axios.post(url, data, { headers, timeout: finalTimeout });
   }
 
   /**
