@@ -84,8 +84,8 @@ export class HttpClient {
     return new Promise((r) => setTimeout(r, seconds * 1000));
   }
 
-  private calculateTotalWaitTime(actions: any[] = [], waitFor: number = 0): number {
-    const actionWaitTime = actions.reduce((acc, action) => {
+  private calculateTotalTimeout(timeoutMs?: number, waitFor?: number, actions?: any[]): number {
+    const actionWaitTime = (actions || []).reduce((acc, action) => {
       if (action.type === "wait") {
         if (action.milliseconds) {
           return acc + action.milliseconds;
@@ -97,24 +97,22 @@ export class HttpClient {
       return acc;
     }, 0);
     
-    return waitFor + actionWaitTime;
+    const totalWaitTime = (waitFor || 0) + actionWaitTime;
+    return timeoutMs !== undefined ? (timeoutMs + totalWaitTime + 5000) : (this.defaultTimeoutMs + totalWaitTime);
   }
 
   post<T = any>(endpoint: string, body: Record<string, unknown>, headers?: Record<string, string>, timeoutMs?: number, waitFor?: number, actions?: any[]) {
-    const totalWaitTime = this.calculateTotalWaitTime(actions, waitFor);
-    const finalTimeout = timeoutMs !== undefined ? (timeoutMs + totalWaitTime + 5000) : (this.defaultTimeoutMs + totalWaitTime);
+    const finalTimeout = this.calculateTotalTimeout(timeoutMs, waitFor, actions);
     return this.request<T>({ method: "post", url: endpoint, data: body, headers }, finalTimeout);
   }
 
   get<T = any>(endpoint: string, headers?: Record<string, string>, timeoutMs?: number, waitFor?: number, actions?: any[]) {
-    const totalWaitTime = this.calculateTotalWaitTime(actions, waitFor);
-    const finalTimeout = timeoutMs !== undefined ? (timeoutMs + totalWaitTime + 5000) : (this.defaultTimeoutMs + totalWaitTime);
+    const finalTimeout = this.calculateTotalTimeout(timeoutMs, waitFor, actions);
     return this.request<T>({ method: "get", url: endpoint, headers }, finalTimeout);
   }
 
   delete<T = any>(endpoint: string, headers?: Record<string, string>, timeoutMs?: number, waitFor?: number, actions?: any[]) {
-    const totalWaitTime = this.calculateTotalWaitTime(actions, waitFor);
-    const finalTimeout = timeoutMs !== undefined ? (timeoutMs + totalWaitTime + 5000) : (this.defaultTimeoutMs + totalWaitTime);
+    const finalTimeout = this.calculateTotalTimeout(timeoutMs, waitFor, actions);
     return this.request<T>({ method: "delete", url: endpoint, headers }, finalTimeout);
   }
 

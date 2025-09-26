@@ -1501,10 +1501,10 @@ export default class FirecrawlApp {
   }
 
   /**
-   * Calculate total wait time including waitFor and action wait times
+   * Calculate total timeout including user timeout, waitFor, action wait times, and buffer
    */
-  private calculateTotalWaitTime(actions: any[] = [], waitFor: number = 0): number {
-    const actionWaitTime = actions.reduce((acc, action) => {
+  private calculateTotalTimeout(timeout?: number, waitFor?: number, actions?: any[]): number | undefined {
+    const actionWaitTime = (actions || []).reduce((acc, action) => {
       if (action.type === "wait") {
         if (action.milliseconds) {
           return acc + action.milliseconds;
@@ -1516,7 +1516,8 @@ export default class FirecrawlApp {
       return acc;
     }, 0);
     
-    return waitFor + actionWaitTime;
+    const totalWaitTime = (waitFor || 0) + actionWaitTime;
+    return timeout !== undefined ? (timeout + totalWaitTime + 5000) : undefined;
   }
 
   /**
@@ -1537,8 +1538,7 @@ export default class FirecrawlApp {
     waitFor?: number,
     actions?: any[]
   ): Promise<AxiosResponse> {
-    const totalWaitTime = this.calculateTotalWaitTime(actions, waitFor);
-    const finalTimeout = timeout !== undefined ? (timeout + totalWaitTime + 5000) : undefined;
+    const finalTimeout = this.calculateTotalTimeout(timeout, waitFor, actions);
     return axios.post(url, data, { headers, timeout: finalTimeout });
   }
 
