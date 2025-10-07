@@ -61,13 +61,13 @@ const base = z.object({
     .default("INFO"),
 
   NUQ_DATABASE_URL: defaultUrl(
-    "postgres://postgres:postgres@nuq-postgres:5432/postgres",
+    "postgres://postgres:postgres@localhost:5432/postgres",
     "Must be a valid database URL",
   ),
 
-  REDIS_URL: defaultUrl("redis://redis:6379", "Must be a valid Redis URL"),
+  REDIS_URL: defaultUrl("redis://localhost:6379", "Must be a valid Redis URL"),
   REDIS_RATE_LIMIT_URL: defaultUrl(
-    "redis://redis:6379",
+    "redis://localhost:6379",
     "Must be a valid Redis URL",
   ),
   PLAYWRIGHT_MICROSERVICE_URL: optionalUrl,
