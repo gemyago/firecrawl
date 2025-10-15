@@ -627,7 +627,7 @@ export async function searchController(
     }
 
     // Check if scraping is requested
-    const shouldScrape = false;
+    const shouldScrape = true;
     //   req.body.scrapeOptions.formats &&
     //   req.body.scrapeOptions.formats.length > 0;
     const isAsyncScraping = false; // Force sync scraping so response waits for scrapes to finish
@@ -998,6 +998,33 @@ export async function searchController(
 
         // Update response with scraped data
         Object.assign(searchResponse, scrapedResponse);
+
+        // Re-rank web results using snippet similarity only (keep TLS markdown in response)
+        if (searchResponse.web && searchResponse.web.length > 0) {
+          const simSum = (text: string | undefined, qs: string[]) => {
+            if (!text || text.trim().length === 0) return 0;
+            return qs.reduce((acc, q) => acc + textSim(text, q), 0);
+          };
+
+          const scored = searchResponse.web.map((item, idx) => {
+            const snippetText =
+              (item as any).description &&
+              (item as any).description.trim().length > 0
+                ? (item as any).description
+                : `${(item as any).title ?? ""}`;
+            const s1 = simSum(snippetText, expandedQueries);
+            const score = s1;
+            return { item, score, idx };
+          });
+
+          scored.sort((a, b) =>
+            b.score !== a.score ? b.score - a.score : a.idx - b.idx,
+          );
+          searchResponse.web = scored.map((x, i) => ({
+            ...(x.item as any),
+            position: i + 1,
+          }));
+        }
       }
     }
 
