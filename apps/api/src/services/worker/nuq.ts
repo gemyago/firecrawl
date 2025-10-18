@@ -641,6 +641,80 @@ class NuQ<JobData = any, JobReturnValue = any> {
     });
   }
 
+  public async addJobs(
+    jobs: Array<{
+      id: string;
+      data: JobData;
+      options?: NuQJobOptions;
+    }>,
+    _logger: Logger = logger,
+  ): Promise<NuQJob<JobData, JobReturnValue>[]> {
+    if (jobs.length === 0) return [];
+
+    return withSpan("nuq.addJobs", async span => {
+      setSpanAttributes(span, {
+        "nuq.queue_name": this.queueName,
+        "nuq.job_count": jobs.length,
+      });
+
+      const start = Date.now();
+      try {
+        // Prepare arrays for bulk insert
+        const ids: string[] = [];
+        const dataArray: JobData[] = [];
+        const priorities: number[] = [];
+        const listenChannelIds: (string | null)[] = [];
+        const ownerIds: (string | null)[] = [];
+        const groupIds: (string | null)[] = [];
+
+        for (const job of jobs) {
+          const bareOwnerId = job.options?.ownerId ?? undefined;
+          const normalizedOwnerId = bareOwnerId
+            ? uuidValidate(bareOwnerId)
+              ? bareOwnerId
+              : uuidv5(bareOwnerId, "b208cbac-8bdf-4599-bf17-da78426e3f7c") // preview namespace
+            : null;
+
+          ids.push(job.id);
+          dataArray.push(job.data);
+          priorities.push(job.options?.priority ?? 0);
+          listenChannelIds.push(
+            job.options?.listenable ? listenChannelId : null,
+          );
+          ownerIds.push(normalizedOwnerId);
+          groupIds.push(job.options?.groupId ?? null);
+        }
+
+        // Bulk insert using UNNEST
+        const result = await nuqPool.query(
+          `INSERT INTO ${this.queueName} (id, data, priority, listen_channel_id, owner_id, group_id)
+          SELECT * FROM UNNEST($1::uuid[], $2::jsonb[], $3::int[], $4::text[], $5::uuid[], $6::uuid[])
+          RETURNING ${this.jobReturning.join(", ")};`,
+          [ids, dataArray, priorities, listenChannelIds, ownerIds, groupIds],
+        );
+
+        const createdJobs = result.rows.map(row => this.rowToJob(row)!);
+
+        setSpanAttributes(span, {
+          "nuq.jobs_created": createdJobs.length,
+        });
+
+        return createdJobs;
+      } finally {
+        const duration = Date.now() - start;
+        setSpanAttributes(span, {
+          "nuq.duration_ms": duration,
+        });
+        _logger.info("nuqAddJobs metrics", {
+          module: "nuq/metrics",
+          method: "nuqAddJobs",
+          duration,
+          jobCount: jobs.length,
+        });
+      }
+    });
+  }
+
   private readonly nuqWaitMode =
     process.env.NUQ_WAIT_MODE === "listen" || process.env.NUQ_RABBITMQ_URL
       ? ("listen" as const)

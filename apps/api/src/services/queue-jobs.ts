@@ -10,25 +10,6 @@ import { abTestJob } from "./ab-test";
 import { NuQJob, scrapeQueue } from "./worker/nuq";
 import { serializeTraceContext } from "../lib/otel-tracer";
 
-async function addScrapeJobRaw(
-  webScraperOptions: ScrapeJobData,
-  jobId: string,
-  priority: number = 0,
-  directToBullMQ: boolean = false,
-  listenable: boolean = false,
-): Promise<NuQJob<ScrapeJobData>> {
-  if (webScraperOptions.mode === "single_urls") {
-    abTestJob(webScraperOptions);
-  }
-
-  return await scrapeQueue.addJob(jobId, webScraperOptions, {
-    priority,
-    listenable,
-    ownerId: webScraperOptions.team_id,
-    groupId: webScraperOptions.crawl_id ?? undefined,
-  });
-}
-
 export async function addScrapeJob(
   webScraperOptions: ScrapeJobData,
   jobId: string = uuidv4(),
@@ -43,13 +24,16 @@ export async function addScrapeJob(
     traceContext,
   };
 
-  return await addScrapeJobRaw(
-    optionsWithTrace,
-    jobId,
+  if (webScraperOptions.mode === "single_urls") {
+    abTestJob(webScraperOptions);
+  }
+
+  return await scrapeQueue.addJob(jobId, webScraperOptions, {
     priority,
-    directToBullMQ,
     listenable,
-  );
+    ownerId: webScraperOptions.team_id,
+    groupId: webScraperOptions.crawl_id ?? undefined,
+  });
 }
 
 export async function addScrapeJobs(
@@ -65,16 +49,26 @@ export async function addScrapeJobs(
   // Capture trace context for all jobs
   const traceContext = serializeTraceContext();
 
-  await Promise.all(
-    jobs.map(async job => {
-      await addScrapeJobRaw(
-        { ...job.data, traceContext },
-        job.jobId,
-        job.priority,
-        false,
-        job.listenable,
-      );
-    }),
+  for (const job of jobs) {
+    if (job.data.mode === "single_urls") {
+      abTestJob(job.data);
+    }
+  }
+
+  await scrapeQueue.addJobs(
+    jobs.map(job => ({
+      data: {
+        ...job.data,
+        traceContext,
+      },
+      id: job.jobId,
+      options: {
+        priority: job.priority,
+        listenable: job.listenable,
+        ownerId: job.data.team_id,
+        groupId: job.data.crawl_id ?? undefined,
+      },
+    })),
   );
 }
 
