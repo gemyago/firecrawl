@@ -182,16 +182,12 @@ async function deriveBrandingFromActions(
     return document;
   }
 
-  console.log("🔥 document.actions", document?.actions?.javascriptReturns);
-
   const brandingReturnIndex = document.actions?.javascriptReturns?.findIndex(
     x =>
       x.type === "object" &&
       ("fonts" in (x.value as any) || // Old format
         "raw" in (x.value as any)), // New raw format
   );
-
-  console.log("🔥 brandingReturnIndex", brandingReturnIndex);
 
   if (brandingReturnIndex === -1 || brandingReturnIndex === undefined) {
     return document;
@@ -230,8 +226,6 @@ async function deriveBrandingFromActions(
   if (!jsBranding) {
     return document;
   }
-
-  console.log("🔥 JS branding analysis", jsBranding);
 
   // Enhance with LLM
   try {
@@ -299,8 +293,6 @@ async function deriveBrandingFromActions(
     // Clean up internal data
     delete (document.branding as any).__button_snapshots;
   }
-
-  console.log("🔥 Final branding (JS + LLM)", document.branding);
 
   return document;
 }
