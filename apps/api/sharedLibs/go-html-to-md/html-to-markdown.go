@@ -138,7 +138,6 @@ func addGenericPreRule(conv *md.Converter) {
 			code := b.String()
 			// collapse multiple newlines for inline code
 			code = md.TrimTrailingSpaces(strings.ReplaceAll(code, "\r\n", "\n"))
-			code = strings.ReplaceAll(code, "`", "\\`")
 
 			// Choose fence length safely
 			fence := "`"
