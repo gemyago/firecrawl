@@ -35,7 +35,7 @@ import { youtubePostprocessor } from "../../postprocessors/youtube";
 import { withSpan, setSpanAttributes } from "../../../../lib/otel-tracer";
 import { BrandingProfile } from "../../../../types/branding";
 
-import { loadBrandingScript } from "./brandingScript";
+import { getBrandingScript } from "./brandingScript";
 
 // This function does not take `Meta` on purpose. It may not access any
 // meta values to construct the request -- that must be done by the
@@ -262,7 +262,7 @@ export async function scrapeURLWithFireEngineChromeCDP(
         ? [
             {
               type: "executeJavascript" as const,
-              script: await loadBrandingScript(),
+              script: getBrandingScript(),
             },
           ]
         : []),
