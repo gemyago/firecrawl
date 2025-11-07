@@ -539,35 +539,40 @@ async function scrapeURLLoop(meta: Meta): Promise<ScrapeUrlResponse> {
       });
 
       while (true) {
+        let timeouts: NodeJS.Timeout[] = [];
         try {
           result = await Promise.race([
             ...enginePromises.map(x => x.promise),
             ...(remainingEngines.length > 0
               ? [
                   new Promise<EngineScrapeResultWithContext>((_, reject) => {
-                    setTimeout(() => {
-                      reject(new WaterfallNextEngineSignal());
-                    }, waitUntilWaterfall);
+                    timeouts.push(
+                      setTimeout(() => {
+                        reject(new WaterfallNextEngineSignal());
+                      }, waitUntilWaterfall),
+                    );
                   }),
                 ]
               : []),
             new Promise<EngineScrapeResultWithContext>((_, reject) => {
-              setTimeout(() => {
-                try {
-                  meta.abort.throwIfAborted();
+              timeouts.push(
+                setTimeout(() => {
+                  try {
+                    meta.abort.throwIfAborted();
 
-                  // Fallback error if above doesn't throw
-                  const usingDefaultTimeout =
-                    meta.abort.scrapeTimeout() === undefined;
-                  throw new ScrapeJobTimeoutError(
-                    usingDefaultTimeout
-                      ? "Scrape timed out due to maximum length of 5 minutes"
-                      : "Scrape timed out",
-                  );
-                } catch (error) {
-                  reject(error);
-                }
-              }, meta.abort.scrapeTimeout() ?? 300000);
+                    // Fallback error if above doesn't throw
+                    const usingDefaultTimeout =
+                      meta.abort.scrapeTimeout() === undefined;
+                    throw new ScrapeJobTimeoutError(
+                      usingDefaultTimeout
+                        ? "Scrape timed out due to maximum length of 5 minutes"
+                        : "Scrape timed out",
+                    );
+                  } catch (error) {
+                    reject(error);
+                  }
+                }, meta.abort.scrapeTimeout() ?? 300000),
+              );
             }),
           ]);
           break;
@@ -664,6 +669,10 @@ async function scrapeURLLoop(meta: Meta): Promise<ScrapeUrlResponse> {
               error,
             });
             throw error;
+          }
+        } finally {
+          for (const to of timeouts) {
+            clearTimeout(to);
           }
         }
       }

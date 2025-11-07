@@ -81,8 +81,10 @@ const jobLockExtendInterval =
 const jobLockExtensionTime =
   Number(process.env.JOB_LOCK_EXTENSION_TIME) || 60000;
 
-cacheableLookup.install(http.globalAgent);
-cacheableLookup.install(https.globalAgent);
+if (require.main === module) {
+  cacheableLookup.install(http.globalAgent);
+  cacheableLookup.install(https.globalAgent);
+}
 
 async function billScrapeJob(
   job: NuQJob<any>,
@@ -1094,7 +1096,11 @@ async function processJobWithTracing(job: NuQJob<ScrapeJobData>, logger: any) {
   try {
     try {
       let extendLockInterval: NodeJS.Timeout | null = null;
-      if (job.data?.mode !== "kickoff" && job.data?.team_id) {
+      if (
+        job.data?.mode !== "kickoff" &&
+        job.data?.team_id &&
+        !job.data.skipNuq
+      ) {
         extendLockInterval = setInterval(async () => {
           await pushConcurrencyLimitActiveJob(
             job.data.team_id,
@@ -1160,7 +1166,9 @@ async function processJobWithTracing(job: NuQJob<ScrapeJobData>, logger: any) {
         }
       }
     } finally {
-      await concurrentJobDone(job);
+      if (!job.data.skipNuq) {
+        await concurrentJobDone(job);
+      }
     }
   } catch (error) {
     logger.warn("Job failed", { error });
