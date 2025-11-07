@@ -9,6 +9,7 @@ on:
       - nsc/go-service
     paths:
       - apps/go-html-to-md-service/**
+      - .github/workflows/deploy-go-service.yaml
   workflow_dispatch:
 
 jobs:
