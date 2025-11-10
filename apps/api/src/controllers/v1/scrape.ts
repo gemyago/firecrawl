@@ -44,6 +44,7 @@ export async function scrapeController(
   const logger = _logger.child({
     method: "scrapeController",
     jobId,
+    noq: true,
     scrapeId: jobId,
     teamId: req.auth.team_id,
     team_id: req.auth.team_id,
@@ -148,14 +149,15 @@ export async function scrapeController(
       },
     );
   } catch (e) {
-    logger.error(`Error in scrapeController`, {
-      version: "v1",
-      error: e,
-    });
+    const timeoutErr =
+      e instanceof TransportableError && e.code === "SCRAPE_TIMEOUT";
 
-    // if (zeroDataRetention) {
-    // await scrapeQueue.removeJob(jobId, logger);
-    // }
+    if (!timeoutErr) {
+      logger.error(`Error in scrapeController`, {
+        version: "v1",
+        error: e,
+      });
+    }
 
     if (e instanceof TransportableError) {
       return res.status(e.code === "SCRAPE_TIMEOUT" ? 408 : 500).json({
@@ -178,8 +180,6 @@ export async function scrapeController(
 
   logger.info("Done with waitForJob");
 
-  // await scrapeQueue.removeJob(jobId, logger);
-
   logger.info("Removed job from queue");
 
   if (!req.body.formats.includes("rawHtml")) {
@@ -192,7 +192,6 @@ export async function scrapeController(
   const controllerTime = new Date().getTime() - controllerStartTime;
   logger.info("Request metrics", {
     version: "v1",
-    noq: true,
     mode: "scrape",
     scrapeId: jobId,
     middlewareStartTime,
