@@ -197,11 +197,11 @@ export async function resolveRedirects(
   url: string,
   abort?: AbortSignal,
 ): Promise<string> {
-  try {
-    if (!protocolIncluded(url)) {
-      url = `http://${url}`;
-    }
+  if (!protocolIncluded(url)) {
+    url = `http://${url}`;
+  }
 
+  try {
     const response = await undici.fetch(url, {
       method: "HEAD",
       redirect: "follow",
@@ -211,6 +211,8 @@ export async function resolveRedirects(
 
     return response.url;
   } catch (error) {
+    if (abort?.aborted) throw error;
+
     try {
       const response = await undici.fetch(url, {
         method: "GET",
@@ -221,6 +223,7 @@ export async function resolveRedirects(
 
       return response.url;
     } catch (getError) {
+      if (abort?.aborted) throw getError;
       return url;
     }
   }
