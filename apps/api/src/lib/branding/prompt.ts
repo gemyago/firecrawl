@@ -191,8 +191,16 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
           : candidate.src;
 
       const hrefInfo = candidate.href ? ` | href:${candidate.href}` : "";
+      const sourceInfo =
+        candidate.source === "text-based-logo" ? " | TEXT-BASED" : "";
+      const typeLabel =
+        candidate.source === "text-based-logo"
+          ? "TEXT"
+          : candidate.isSvg
+            ? "SVG"
+            : "IMG";
 
-      prompt += `#${idx}: ${candidate.location} | ${candidate.isVisible ? "visible" : "hidden"} | ${candidate.isSvg ? "SVG" : "IMG"} | alt:"${candidate.alt || ""}" | [${indicators.join(", ")}]${hrefInfo} | ${urlPreview}\n`;
+      prompt += `#${idx}: ${candidate.location} | ${candidate.isVisible ? "visible" : "hidden"} | ${typeLabel}${sourceInfo} | alt:"${candidate.alt || ""}" | [${indicators.join(", ")}]${hrefInfo} | ${urlPreview}\n`;
     });
 
     prompt += `\n**CRITICAL LOGO SELECTION RULES:**\n`;
@@ -203,17 +211,23 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
     prompt += `3. **Href Indicator**: Logos that link to "/" (homepage) are VERY LIKELY the main brand logo\n`;
     prompt += `   - href="/" or href="/home" indicates homepage logo - STRONG indicator\n`;
     prompt += `   - Logos with hrefMatch indicator are prioritized\n`;
-    prompt += `4. **Visibility**: Prefer visible logos (not hidden by dark/light mode)\n`;
-    prompt += `5. **AVOID**:\n`;
+    prompt += `4. **Text-Based Logos**: Some websites use styled text blocks (like "${brandName || "brand name"}" in a colored box) instead of image logos\n`;
+    prompt += `   - These are marked as "TEXT-BASED" in the candidate list\n`;
+    prompt += `   - Text-based logos are VALID and should be considered equally with image/SVG logos\n`;
+    prompt += `   - They often appear as the first element in the header/navbar\n`;
+    prompt += `   - The alt text shows the brand name text that was converted to an image\n`;
+    prompt += `5. **Visibility**: Prefer visible logos (not hidden by dark/light mode)\n`;
+    prompt += `6. **AVOID**:\n`;
     prompt += `   - Customer/client logos (different brand names)\n`;
     prompt += `   - Partner logos (different brand names)\n`;
     prompt += `   - Testimonial logos (usually in testimonials/case studies sections)\n`;
     prompt += `   - GitHub stars/social media icons\n`;
     prompt += `   - Logos in footer (unless no header logo exists)\n`;
     prompt += `   - Logos in "customers", "partners", "clients", "case studies" sections\n`;
-    prompt += `6. **Use Screenshot**: Look at the screenshot to visually identify which logo is the MAIN brand logo at the top of the page\n`;
+    prompt += `7. **Use Screenshot**: Look at the screenshot to visually identify which logo is the MAIN brand logo at the top of the page\n`;
     prompt += `   - The logo in the header/navbar is almost always the brand logo\n`;
-    prompt += `   - If multiple logos exist, choose the one that matches "${brandName || "the website brand"}"\n\n`;
+    prompt += `   - If multiple logos exist, choose the one that matches "${brandName || "the website brand"}"\n`;
+    prompt += `   - Text-based logos appear as styled text blocks in the header - these are valid brand logos\n\n`;
   }
 
   // Add background color candidates section
@@ -289,6 +303,10 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
     prompt += `   - Use the screenshot to visually identify which logo appears at the top of the page\n`;
     prompt += `   - The logo should visually represent "${brandName || "the website's main brand"}"\n`;
     prompt += `   - Prefer visible logos in header/navbar locations (these are almost always the brand logo)\n`;
+    prompt += `   - **TEXT-BASED LOGOS**: Some candidates are marked "TEXT-BASED" - these are styled text blocks converted to images\n`;
+    prompt += `     * They are VALID brand logos (many modern sites use text logos instead of images)\n`;
+    prompt += `     * Check the alt text to see the brand name - it should match "${brandName || "the brand"}"\n`;
+    prompt += `     * Text-based logos often appear as the first element in header/navbar\n`;
     prompt += `   - **AVOID**:\n`;
     prompt += `     * Customer/client logos (show different company names)\n`;
     prompt += `     * Partner logos (show different company names)\n`;

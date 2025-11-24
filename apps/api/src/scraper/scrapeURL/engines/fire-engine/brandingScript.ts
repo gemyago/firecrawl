@@ -426,6 +426,226 @@ export const getBrandingScript = () => String.raw`
     };
   };
 
+  // Convert a text element to an image (canvas-based)
+  const textElementToImage = (el) => {
+    try {
+      const rect = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      
+      // Skip if element is too small or invisible
+      if (rect.width < 20 || rect.height < 10 || rect.width === 0 || rect.height === 0) {
+        return null;
+      }
+      
+      // Use higher DPI for better quality (2x for retina displays)
+      const scale = 2;
+      const padding = 8;
+      const canvas = document.createElement('canvas');
+      canvas.width = (rect.width + padding * 2) * scale;
+      canvas.height = (rect.height + padding * 2) * scale;
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) return null;
+      
+      // Scale context for high DPI
+      ctx.scale(scale, scale);
+      
+      // Set up text rendering context
+      ctx.textBaseline = 'top';
+      
+      // Get computed styles
+      const fontSize = cs.fontSize || '16px';
+      const fontFamily = cs.fontFamily || 'sans-serif';
+      const fontWeight = cs.fontWeight || 'normal';
+      const fontStyle = cs.fontStyle || 'normal';
+      const textColor = cs.color || 'rgb(0, 0, 0)';
+      const bgColor = cs.backgroundColor || 'transparent';
+      
+      // Set font
+      ctx.font = fontStyle + ' ' + fontWeight + ' ' + fontSize + ' ' + fontFamily;
+      
+      // Get text alignment
+      const textAlign = cs.textAlign || 'left';
+      ctx.textAlign = textAlign;
+      
+      // Fill background
+      const bgIsTransparent = bgColor === 'transparent' || bgColor === 'rgba(0, 0, 0, 0)';
+      if (!bgIsTransparent) {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
+      } else {
+        // Transparent background - fill with white for better visibility
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
+      }
+      
+      // Draw border if present
+      const borderWidth = parseFloat(cs.borderTopWidth) || 0;
+      const borderColor = cs.borderTopColor || 'transparent';
+      if (borderWidth > 0 && borderColor !== 'transparent') {
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = borderWidth;
+        ctx.strokeRect(
+          borderWidth / 2,
+          borderWidth / 2,
+          (canvas.width / scale) - borderWidth,
+          (canvas.height / scale) - borderWidth
+        );
+      }
+      
+      // Draw text
+      ctx.fillStyle = textColor;
+      const text = el.textContent?.trim() || '';
+      
+      if (!text) return null;
+      
+      // Calculate text position
+      let textX = padding;
+      const textY = padding;
+      
+      // Handle text alignment
+      if (textAlign === 'center') {
+        textX = (canvas.width / scale) / 2;
+      } else if (textAlign === 'right') {
+        textX = (canvas.width / scale) - padding;
+      }
+      
+      // Handle multi-line text if needed
+      const lines = text.split('\n');
+      const lineHeight = parseFloat(fontSize) * 1.2;
+      
+      lines.forEach((line, idx) => {
+        if (line.trim()) {
+          ctx.fillText(line, textX, textY + idx * lineHeight);
+        }
+      });
+      
+      // Convert to data URL
+      return canvas.toDataURL('image/png');
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Detect text-based logos (brand names in styled blocks)
+  const findTextBasedLogos = () => {
+    const candidates = [];
+    
+    // Look for text elements in header/nav that could be logos
+    const headerNavSelectors = [
+      'header a',
+      'header span',
+      'header div',
+      'nav a',
+      'nav span',
+      'nav div',
+      '[role="banner"] a',
+      '[role="banner"] span',
+      '[role="banner"] div',
+      '[class*="navbar"] a',
+      '[class*="navbar"] span',
+      '[class*="navbar"] div',
+      '[class*="header"] a',
+      '[class*="header"] span',
+      '[class*="header"] div',
+    ];
+    
+    const allElements = new Set();
+    headerNavSelectors.forEach(selector => {
+      try {
+        Array.from(document.querySelectorAll(selector)).forEach(el => {
+          allElements.add(el);
+        });
+      } catch (e) {
+        // Skip invalid selectors
+      }
+    });
+    
+    Array.from(allElements).forEach(el => {
+      try {
+        const rect = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const text = el.textContent?.trim() || '';
+        
+        // Skip if no text or too long (logos are usually short)
+        if (!text || text.length > 50) return;
+        
+        // Skip if element is invisible or too small
+        if (rect.width < 20 || rect.height < 10 || 
+            cs.display === 'none' || cs.visibility === 'hidden' || 
+            parseFloat(cs.opacity) === 0) {
+          return;
+        }
+        
+        // Check if element has logo-like styling
+        const bgColor = cs.backgroundColor;
+        const hasBackground = bgColor && bgColor !== 'transparent' && bgColor !== 'rgba(0, 0, 0, 0)';
+        const hasBorder = parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0 ||
+                         parseFloat(cs.borderLeftWidth) > 0 || parseFloat(cs.borderRightWidth) > 0;
+        const hasBorderRadius = parseFloat(cs.borderRadius) > 0;
+        const hasPadding = parseFloat(cs.paddingTop) > 0 || parseFloat(cs.paddingBottom) > 0 ||
+                          parseFloat(cs.paddingLeft) > 0 || parseFloat(cs.paddingRight) > 0;
+        
+        // Check if it's in header/nav context
+        const inHeader = el.closest('header, nav, [role="banner"], #navbar, [id*="navbar"], [class*="navbar"], [class*="header"]');
+        
+        // Check if it links to homepage (strong logo indicator)
+        const href = el.tagName.toLowerCase() === 'a' ? (el.getAttribute('href') || '') : '';
+        const hrefMatch = href === '/' || href === '/home' || href === '/index' || href === '' || href === '#';
+        
+        // Check for logo-related classes/attributes
+        const classNames = (el.className || '').toLowerCase();
+        const hasLogoClass = /logo|brand|site-name|site-title/i.test(classNames);
+        
+        // Check if it's a CTA button (we want to exclude these)
+        const hasCTAIndicator = 
+          el.matches('[data-primary-button],[data-secondary-button],[data-cta],[class*="cta"],[class*="hero"]') ||
+          el.getAttribute('data-primary-button') === 'true' ||
+          el.getAttribute('data-secondary-button') === 'true' ||
+          /button|btn|cta/i.test(classNames);
+        
+        // Criteria for text-based logo:
+        // 1. In header/nav AND links to "/" (homepage) AND has styled appearance (background/border/padding)
+        // 2. In header/nav AND has logo class
+        // 3. In header/nav AND is first/last child of header/nav container AND has styled appearance
+        // 4. Short text (logo-like) in header with background/border (but not a CTA button)
+        const isFirstInContainer = el.parentElement && el.parentElement.firstElementChild === el;
+        const isLastInContainer = el.parentElement && el.parentElement.lastElementChild === el;
+        const isEarlyInHeader = inHeader && (isFirstInContainer || isLastInContainer);
+        
+        const looksLikeTextLogo = 
+          (inHeader && hrefMatch && (hasBackground || hasBorder || hasBorderRadius || hasPadding) && text.length <= 50 && !hasCTAIndicator) ||
+          (hasLogoClass && inHeader && !hasCTAIndicator) ||
+          (isEarlyInHeader && (hasBackground || hasBorder || hasBorderRadius) && text.length <= 30 && !hasCTAIndicator) ||
+          (inHeader && (hasBackground || (hasBorder && hasBorderRadius)) && text.length <= 20 && !hasCTAIndicator);
+        
+        if (looksLikeTextLogo) {
+          // Convert to image
+          const imageDataUrl = textElementToImage(el);
+          if (imageDataUrl) {
+            const anchorParent = el.closest('a') || (el.tagName.toLowerCase() === 'a' ? el : null);
+            const finalHref = anchorParent ? (anchorParent.getAttribute('href') || '') : href;
+            
+            candidates.push({
+              element: el,
+              text: text,
+              imageDataUrl: imageDataUrl,
+              rect: rect,
+              href: finalHref,
+              inHeader: !!inHeader,
+              hasBackground: !!hasBackground,
+              hasLogoClass: hasLogoClass,
+            });
+          }
+        }
+      } catch (e) {
+        // Skip errors
+      }
+    });
+    
+    return candidates;
+  };
+
   const findImages = () => {
     const imgs = [];
     const logoCandidates = [];
@@ -628,6 +848,41 @@ export const getBrandingScript = () => String.raw`
           collectLogoCandidate(svg, "document.querySelectorAll(svg)");
         }
       }
+    });
+
+    // Collect text-based logos
+    const textLogos = findTextBasedLogos();
+    textLogos.forEach(textLogo => {
+      const rect = textLogo.rect;
+      const style = getComputedStyle(textLogo.element);
+      const isVisible = (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        parseFloat(style.opacity) !== 0
+      );
+      
+      const href = textLogo.href || '';
+      const hrefMatch = href === '/' || href === '/home' || href === '/index' || href === '' || href === '#';
+      
+      logoCandidates.push({
+        src: textLogo.imageDataUrl,
+        alt: textLogo.text,
+        isSvg: false,
+        isVisible: isVisible,
+        location: textLogo.inHeader ? "header" : "body",
+        position: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+        indicators: {
+          inHeader: textLogo.inHeader,
+          altMatch: false, // Text logos don't have alt
+          srcMatch: false, // Not from src
+          classMatch: textLogo.hasLogoClass,
+          hrefMatch: hrefMatch,
+        },
+        href: href || undefined,
+        source: "text-based-logo",
+      });
     });
 
     // Remove duplicates (same src)
