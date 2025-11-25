@@ -81,6 +81,7 @@ export function mergeBrandingResults(
         textColor: primaryBtn.textColor,
         borderColor: primaryBtn.borderColor || undefined,
         borderRadius: primaryBtn.borderRadius || "0px",
+        borderRadiusCorners: primaryBtn.borderRadiusCorners,
         shadow: primaryBtn.shadow || undefined,
       };
     }
@@ -96,6 +97,7 @@ export function mergeBrandingResults(
           textColor: secondaryBtn.textColor,
           borderColor: secondaryBtn.borderColor || undefined,
           borderRadius: secondaryBtn.borderRadius || "0px",
+          borderRadiusCorners: secondaryBtn.borderRadiusCorners,
           shadow: secondaryBtn.shadow || undefined,
         };
       }

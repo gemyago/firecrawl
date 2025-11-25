@@ -1,5 +1,5 @@
 import { BrandingProfile } from "../../types/branding";
-import { BrandingScriptReturn } from "./types";
+import { BrandingScriptReturn, InputSnapshot } from "./types";
 import { parse, rgb, formatHex } from "culori";
 
 // Export for testing
@@ -300,13 +300,8 @@ export function processRawBranding(raw: BrandingScriptReturn): BrandingProfile {
       null,
   };
 
-  // Components (empty for now - LLM will populate)
-  const components = {
-    input: {
-      borderColor: "#CCCCCC",
-      borderRadius: borderRadius,
-    },
-  };
+  // Components - will be populated with actual detected styles
+  let components: any = {};
 
   // Filter and score buttons
   const candidateButtons = raw.snapshots
@@ -431,6 +426,39 @@ export function processRawBranding(raw: BrandingScriptReturn): BrandingProfile {
       bgHex = "transparent";
     }
 
+    const corners = {
+      topLeft:
+        s.borderRadius?.topLeft !== null &&
+        s.borderRadius?.topLeft !== undefined
+          ? `${s.borderRadius.topLeft}px`
+          : "0px",
+      topRight:
+        s.borderRadius?.topRight !== null &&
+        s.borderRadius?.topRight !== undefined
+          ? `${s.borderRadius.topRight}px`
+          : "0px",
+      bottomRight:
+        s.borderRadius?.bottomRight !== null &&
+        s.borderRadius?.bottomRight !== undefined
+          ? `${s.borderRadius.bottomRight}px`
+          : "0px",
+      bottomLeft:
+        s.borderRadius?.bottomLeft !== null &&
+        s.borderRadius?.bottomLeft !== undefined
+          ? `${s.borderRadius.bottomLeft}px`
+          : "0px",
+    };
+
+    // Calculate representative borderRadius from corners (max non-zero value)
+    const cornerValues = [
+      s.borderRadius?.topLeft || 0,
+      s.borderRadius?.topRight || 0,
+      s.borderRadius?.bottomRight || 0,
+      s.borderRadius?.bottomLeft || 0,
+    ];
+    const maxCorner = Math.max(...cornerValues);
+    const representativeBorderRadius = maxCorner > 0 ? `${maxCorner}px` : "0px";
+
     return {
       index: idx,
       text: s.text || "",
@@ -439,7 +467,8 @@ export function processRawBranding(raw: BrandingScriptReturn): BrandingProfile {
       background: bgHex,
       textColor: hexify(s.colors.text, raw.pageBackground) || "#000000",
       borderColor: borderHex,
-      borderRadius: s.radius ? `${s.radius}px` : "0px",
+      borderRadius: representativeBorderRadius,
+      borderRadiusCorners: corners,
       shadow: s.shadow || null,
       // Debug: original color values before hex conversion
       originalBackgroundColor: s.colors.background || undefined,
@@ -447,6 +476,21 @@ export function processRawBranding(raw: BrandingScriptReturn): BrandingProfile {
       originalBorderColor: s.colors.border || undefined,
     };
   });
+
+  const inputSnapshots = extractInputSnapshots(raw, uniqueButtons);
+
+  // Populate components from actual detected styles
+  if (inputSnapshots.length > 0) {
+    const primaryInput = inputSnapshots[0];
+    components.input = {
+      background: primaryInput.background,
+      textColor: primaryInput.textColor,
+      borderColor: primaryInput.borderColor,
+      borderRadius: primaryInput.borderRadius,
+      borderRadiusCorners: primaryInput.borderRadiusCorners,
+      shadow: primaryInput.shadow,
+    };
+  }
 
   return {
     colorScheme: raw.colorScheme,
@@ -460,6 +504,114 @@ export function processRawBranding(raw: BrandingScriptReturn): BrandingProfile {
     components,
     images,
     __button_snapshots: buttonSnapshots as any,
+    __input_snapshots: inputSnapshots as any,
     __framework_hints: raw.frameworkHints as any,
   };
+}
+
+function extractInputSnapshots(
+  raw: BrandingScriptReturn,
+  buttonSnapshots: any[],
+): InputSnapshot[] {
+  // Filter input fields (excluding button inputs which are already in buttonSnapshots)
+  const candidateInputs = raw.snapshots.filter(s => {
+    if (!s.isInput || !s.inputMetadata) return false;
+    if (s.rect.w < 50 || s.rect.h < 20) return false; // Too small
+    return true;
+  });
+
+  // Score and sort inputs
+  const scoredInputs = candidateInputs.map((input, idx) => {
+    let score = 0;
+    const meta = input.inputMetadata!;
+
+    // Prioritize by type
+    if (meta.type === "email") score += 100;
+    else if (meta.type === "text") score += 80;
+    else if (meta.type === "password") score += 70;
+    else if (meta.type === "search") score += 60;
+    else if (meta.type === "tel") score += 50;
+    else if (meta.type === "textarea") score += 40;
+    else if (meta.type === "select") score += 30;
+
+    // Required fields are more important
+    if (meta.required) score += 50;
+
+    // Has placeholder or label
+    if (meta.placeholder) score += 30;
+    if (meta.label) score += 40;
+
+    // Common email/search field patterns
+    const allText =
+      `${meta.placeholder} ${meta.label} ${meta.name}`.toLowerCase();
+    if (allText.includes("email")) score += 80;
+    if (allText.includes("search")) score += 60;
+    if (allText.includes("password")) score += 50;
+    if (allText.includes("name")) score += 40;
+
+    return { input, score, idx };
+  });
+
+  scoredInputs.sort((a, b) => b.score - a.score);
+
+  // Take top 20 inputs
+  const topInputs = scoredInputs.slice(0, 20);
+
+  return topInputs.map(({ input }) => {
+    const meta = input.inputMetadata!;
+    // Hexify with the actual page background to respect light/dark mode
+    const bgHex = hexify(input.colors.background, raw.pageBackground);
+    const borderHex =
+      input.colors.borderWidth && input.colors.borderWidth > 0
+        ? hexify(input.colors.border, raw.pageBackground)
+        : null;
+
+    const corners = {
+      topLeft:
+        input.borderRadius?.topLeft !== null &&
+        input.borderRadius?.topLeft !== undefined
+          ? `${input.borderRadius.topLeft}px`
+          : "0px",
+      topRight:
+        input.borderRadius?.topRight !== null &&
+        input.borderRadius?.topRight !== undefined
+          ? `${input.borderRadius.topRight}px`
+          : "0px",
+      bottomRight:
+        input.borderRadius?.bottomRight !== null &&
+        input.borderRadius?.bottomRight !== undefined
+          ? `${input.borderRadius.bottomRight}px`
+          : "0px",
+      bottomLeft:
+        input.borderRadius?.bottomLeft !== null &&
+        input.borderRadius?.bottomLeft !== undefined
+          ? `${input.borderRadius.bottomLeft}px`
+          : "0px",
+    };
+
+    // Calculate representative borderRadius from corners (max non-zero value)
+    const cornerValues = [
+      input.borderRadius?.topLeft || 0,
+      input.borderRadius?.topRight || 0,
+      input.borderRadius?.bottomRight || 0,
+      input.borderRadius?.bottomLeft || 0,
+    ];
+    const maxCorner = Math.max(...cornerValues);
+    const representativeBorderRadius = maxCorner > 0 ? `${maxCorner}px` : "0px";
+
+    return {
+      type: meta.type,
+      placeholder: meta.placeholder,
+      label: meta.label,
+      name: meta.name,
+      required: meta.required,
+      classes: input.classes,
+      background: bgHex || "transparent",
+      textColor: hexify(input.colors.text, raw.pageBackground),
+      borderColor: borderHex,
+      borderRadius: representativeBorderRadius,
+      borderRadiusCorners: corners,
+      shadow: input.shadow,
+    };
+  });
 }

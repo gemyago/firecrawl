@@ -227,9 +227,9 @@ export const getBrandingScript = () => String.raw`
 
     pushQ('header img, .site-logo img, img[alt*=logo i], img[src*="logo"]', 5);
     
-    // First, get explicit buttons
+    // First, get explicit buttons (including form submit/button inputs)
     pushQ(
-      'button, [role=button], [data-primary-button], [data-secondary-button], [data-cta], a.button, a.btn, [class*="btn"], [class*="button"], a[class*="bg-brand"], a[class*="bg-primary"], a[class*="bg-accent"], a[type="button"], a[type="button"][class*="bg-"]',
+      'button, input[type="submit"], input[type="button"], [role=button], [data-primary-button], [data-secondary-button], [data-cta], a.button, a.btn, [class*="btn"], [class*="button"], a[class*="bg-brand"], a[class*="bg-primary"], a[class*="bg-accent"]',
       100,
     );
     
@@ -285,12 +285,19 @@ export const getBrandingScript = () => String.raw`
     let bgColor = cs.getPropertyValue("background-color");
     const textColor = cs.getPropertyValue("color");
     
-    // For transparent backgrounds, try to get the background from parent container
+    // For input fields, if background is default browser background (like white/light gray),
+    // keep it as is. For transparent backgrounds, try to get from parent container.
     const isTransparent = bgColor === "transparent" || bgColor === "rgba(0, 0, 0, 0)";
     const alphaMatch = bgColor.match(/rgba?\([^,]*,[^,]*,[^,]*,\s*([\d.]+)\)/);
     const hasZeroAlpha = alphaMatch && parseFloat(alphaMatch[1]) === 0;
     
-    if (isTransparent || hasZeroAlpha) {
+    // For input/select/textarea fields, keep the actual background even if it's white
+    // (browser default backgrounds are important for form fields)
+    const isInputElement = el.tagName.toLowerCase() === 'input' || 
+                          el.tagName.toLowerCase() === 'select' || 
+                          el.tagName.toLowerCase() === 'textarea';
+    
+    if ((isTransparent || hasZeroAlpha) && !isInputElement) {
       // Walk up the DOM to find a non-transparent background
       let parent = el.parentElement;
       let depth = 0;
@@ -311,7 +318,7 @@ export const getBrandingScript = () => String.raw`
 
     // Check if element is a button - use same logic as sampleElements
     let isButton = false;
-    if (el.matches('button,[role=button],[data-primary-button],[data-secondary-button],[data-cta],a.button,a.btn,[class*="btn"],[class*="button"],a[class*="bg-brand"],a[class*="bg-primary"],a[class*="bg-accent"],a[type="button"],a[type="button"][class*="bg-"]')) {
+    if (el.matches('button,input[type="submit"],input[type="button"],[role=button],[data-primary-button],[data-secondary-button],[data-cta],a.button,a.btn,[class*="btn"],[class*="button"],a[class*="bg-brand"],a[class*="bg-primary"],a[class*="bg-accent"]')) {
       isButton = true;
     } else if (el.tagName.toLowerCase() === 'a') {
       // Check if link looks like a button (has button-like styling)
@@ -400,16 +407,84 @@ export const getBrandingScript = () => String.raw`
       }
     } catch (e) {}
 
+    // Get text content - for input buttons, use value attribute
+    let text = "";
+    if (el.tagName.toLowerCase() === 'input' && (el.type === 'submit' || el.type === 'button')) {
+      text = (el.value && el.value.trim().substring(0, 100)) || "";
+    } else {
+      text = (el.textContent && el.textContent.trim().substring(0, 100)) || "";
+    }
+
+    // Get input field metadata if this is an input/select/textarea
+    const isInputField = el.matches('input:not([type="submit"]):not([type="button"]),select,textarea,[class*="form-control"]');
+    let inputMetadata = null;
+    if (isInputField) {
+      const tagName = el.tagName.toLowerCase();
+      inputMetadata = {
+        type: tagName === 'input' ? (el.type || 'text') : tagName,
+        placeholder: el.placeholder || "",
+        value: tagName === 'input' ? (el.value || "") : "",
+        required: el.required || false,
+        disabled: el.disabled || false,
+        name: el.name || "",
+        id: el.id || "",
+        // Try to find associated label
+        label: (() => {
+          if (el.id) {
+            const label = document.querySelector('label[for="' + el.id + '"]');
+            if (label) return (label.textContent || "").trim().substring(0, 100);
+          }
+          // Try parent label
+          const parentLabel = el.closest('label');
+          if (parentLabel) {
+            // Get label text excluding input text
+            const clone = parentLabel.cloneNode(true);
+            const inputInClone = clone.querySelector('input,select,textarea');
+            if (inputInClone) inputInClone.remove();
+            return (clone.textContent || "").trim().substring(0, 100);
+          }
+          return "";
+        })(),
+      };
+    }
+
     return {
       tag: el.tagName.toLowerCase(),
       classes: classNames,
-      text: (el.textContent && el.textContent.trim().substring(0, 100)) || "",
+      text: text,
       rect: { w: rect.width, h: rect.height },
       colors: {
         text: textColor,
         background: bgColor,
-        border: cs.getPropertyValue("border-top-color"),
-        borderWidth: toPx(cs.getPropertyValue("border-top-width")),
+        // Get border from all sides - prefer the most consistent one
+        border: (() => {
+          const top = cs.getPropertyValue("border-top-color");
+          const right = cs.getPropertyValue("border-right-color");
+          const bottom = cs.getPropertyValue("border-bottom-color");
+          const left = cs.getPropertyValue("border-left-color");
+          // If all sides are the same, use that
+          if (top === right && top === bottom && top === left) return top;
+          // Otherwise use top (most common)
+          return top;
+        })(),
+        borderWidth: (() => {
+          const top = toPx(cs.getPropertyValue("border-top-width"));
+          const right = toPx(cs.getPropertyValue("border-right-width"));
+          const bottom = toPx(cs.getPropertyValue("border-bottom-width"));
+          const left = toPx(cs.getPropertyValue("border-left-width"));
+          // If all sides are the same, use that
+          if (top === right && top === bottom && top === left) return top;
+          // Otherwise use top
+          return top;
+        })(),
+        borderTop: cs.getPropertyValue("border-top-color"),
+        borderTopWidth: toPx(cs.getPropertyValue("border-top-width")),
+        borderRight: cs.getPropertyValue("border-right-color"),
+        borderRightWidth: toPx(cs.getPropertyValue("border-right-width")),
+        borderBottom: cs.getPropertyValue("border-bottom-color"),
+        borderBottomWidth: toPx(cs.getPropertyValue("border-bottom-width")),
+        borderLeft: cs.getPropertyValue("border-left-color"),
+        borderLeftWidth: toPx(cs.getPropertyValue("border-left-width")),
       },
       typography: {
         fontStack,
@@ -417,11 +492,18 @@ export const getBrandingScript = () => String.raw`
         weight: parseInt(cs.getPropertyValue("font-weight"), 10) || null,
       },
       radius: toPx(cs.getPropertyValue("border-radius")),
+      borderRadius: {
+        topLeft: toPx(cs.getPropertyValue("border-top-left-radius")),
+        topRight: toPx(cs.getPropertyValue("border-top-right-radius")),
+        bottomRight: toPx(cs.getPropertyValue("border-bottom-right-radius")),
+        bottomLeft: toPx(cs.getPropertyValue("border-bottom-left-radius")),
+      },
       shadow: cs.getPropertyValue("box-shadow") || null,
       isButton: isButton && !isNavigation,
       isNavigation: isNavigation,
       hasCTAIndicator: hasCTAIndicator,
-      isInput: el.matches('input,select,textarea,[class*="form-control"]'),
+      isInput: isInputField,
+      inputMetadata: inputMetadata,
       isLink: el.matches("a"),
     };
   };

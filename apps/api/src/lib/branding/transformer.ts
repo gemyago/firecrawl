@@ -27,6 +27,7 @@ export async function brandingTransformer(
   try {
     const buttonSnapshots: ButtonSnapshot[] =
       (jsBranding as any).__button_snapshots || [];
+    const inputSnapshots = (jsBranding as any).__input_snapshots || [];
 
     const logoCandidates = rawBranding.logoCandidates || [];
     const brandName = rawBranding.brandName;
@@ -211,6 +212,11 @@ export async function brandingTransformer(
       buttonSnapshots,
       logoCandidates.length > 0 ? logoCandidates : undefined,
     );
+
+    meta.logger.info("Input fields detected", {
+      count: inputSnapshots.length,
+      types: inputSnapshots.map((i: any) => i.type).slice(0, 10),
+    });
   } catch (error) {
     meta.logger.error(
       "LLM branding enhancement failed, using JS analysis only",
@@ -220,9 +226,10 @@ export async function brandingTransformer(
   }
 
   // Keep logo selection reasoning in output (helpful for debugging)
-  // but remove button snapshots unless debug mode
+  // but remove button and input snapshots unless debug mode
   if (process.env.DEBUG_BRANDING !== "true") {
     delete (brandingProfile as any).__button_snapshots;
+    delete (brandingProfile as any).__input_snapshots;
   }
 
   return brandingProfile;
