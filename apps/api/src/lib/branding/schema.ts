@@ -99,21 +99,22 @@ export const brandingEnhancementSchema = z.object({
       selectedLogoIndex: z
         .number()
         .describe(
-          "Index of the selected logo in the provided candidates list (0-based), or -1 if none found",
-        )
-        .optional(),
+          "REQUIRED: Index of the selected logo in the provided candidates list (0-based), or -1 if NONE of the candidates match the brand name. YOU MUST RETURN A NUMBER.",
+        ),
       selectedLogoReasoning: z
         .string()
-        .describe("Why this logo was selected as the brand logo")
-        .optional(),
+        .describe(
+          "REQUIRED: Detailed explanation of why this logo was selected, or why none were suitable if returning -1. YOU MUST PROVIDE REASONING.",
+        ),
       confidence: z
         .number()
         .min(0)
         .max(1)
-        .describe("Confidence in logo selection (0-1)")
-        .optional(),
+        .describe(
+          "REQUIRED: Confidence in logo selection (0-1). Return 0 if no suitable logo found.",
+        ),
     })
-    .optional(),
+    .optional(), // Still optional at top level so it's only required when logo candidates are provided
 });
 
 export type BrandingEnhancement = z.infer<typeof brandingEnhancementSchema>;

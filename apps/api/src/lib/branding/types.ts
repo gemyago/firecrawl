@@ -24,7 +24,7 @@ export interface BrandingLLMInput {
     alt: string;
     isSvg: boolean;
     isVisible: boolean;
-    location: "header" | "body";
+    location: "header" | "body" | "footer";
     position: { top: number; left: number; width: number; height: number };
     indicators: {
       inHeader: boolean;
@@ -86,7 +86,7 @@ export interface BrandingScriptReturn {
     alt: string;
     isSvg: boolean;
     isVisible: boolean;
-    location: "header" | "body";
+    location: "header" | "body" | "footer";
     position: { top: number; left: number; width: number; height: number };
     indicators: {
       inHeader: boolean;

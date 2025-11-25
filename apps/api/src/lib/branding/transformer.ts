@@ -5,6 +5,11 @@ import { Meta } from "../../scraper/scrapeURL";
 import { Document } from "../../controllers/v2/types";
 import { BrandingScriptReturn, ButtonSnapshot } from "./types";
 import { mergeBrandingResults } from "./merge";
+import {
+  selectLogoWithConfidence,
+  shouldUseLLMForLogoSelection,
+  getTopCandidatesForLLM,
+} from "./logo-selector";
 
 export async function brandingTransformer(
   meta: Meta,
@@ -20,8 +25,6 @@ export async function brandingTransformer(
   let brandingProfile: BrandingProfile = jsBranding;
 
   try {
-    meta.logger.info("Enhancing branding with LLM...");
-
     const buttonSnapshots: ButtonSnapshot[] =
       (jsBranding as any).__button_snapshots || [];
 
@@ -29,39 +32,42 @@ export async function brandingTransformer(
     const brandName = rawBranding.brandName;
     const backgroundCandidates = rawBranding.backgroundCandidates || [];
 
-    // Optimize logo candidates: limit to top 15, prioritize by indicators
-    const optimizedCandidates = logoCandidates
-      .sort((a, b) => {
-        // Score candidates: higher score = better
-        const scoreA =
-          (a.indicators.inHeader ? 10 : 0) +
-          (a.indicators.hrefMatch ? 8 : 0) + // href="/" is strong indicator
-          (a.isVisible ? 5 : 0) +
-          (a.indicators.altMatch ? 3 : 0) +
-          (a.indicators.srcMatch ? 2 : 0) +
-          (a.indicators.classMatch ? 2 : 0) +
-          (a.location === "header" ? 5 : 0);
-        const scoreB =
-          (b.indicators.inHeader ? 10 : 0) +
-          (b.indicators.hrefMatch ? 8 : 0) + // href="/" is strong indicator
-          (b.isVisible ? 5 : 0) +
-          (b.indicators.altMatch ? 3 : 0) +
-          (b.indicators.srcMatch ? 2 : 0) +
-          (b.indicators.classMatch ? 2 : 0) +
-          (b.location === "header" ? 5 : 0);
-        return scoreB - scoreA;
-      })
-      .slice(0, 15); // Limit to top 15 candidates
+    // TIER 1: Use smart heuristics to get initial selection
+    const heuristicResult =
+      logoCandidates.length > 0
+        ? selectLogoWithConfidence(logoCandidates, brandName)
+        : null;
 
-    meta.logger.info(
-      `Sending ${buttonSnapshots.length} buttons and ${optimizedCandidates.length} logo candidates (from ${logoCandidates.length} total) to LLM for classification`,
-    );
+    if (logoCandidates.length === 0) {
+      meta.logger.warn("No logo candidates found", { brandName });
+    } else {
+      meta.logger.info("Logo heuristic selection", {
+        candidatesCount: logoCandidates.length,
+        selectedIndex: heuristicResult?.selectedIndex,
+        confidence: heuristicResult?.confidence,
+        method: heuristicResult?.method,
+      });
+    }
 
+    // TIER 2: Decide if we need LLM validation
+    const needsLLMValidation = heuristicResult
+      ? shouldUseLLMForLogoSelection(heuristicResult.confidence)
+      : false;
+
+    // Filter to top 10 candidates for LLM (reduces token cost)
+    const { filteredCandidates, indexMap } =
+      needsLLMValidation && logoCandidates.length > 0
+        ? getTopCandidatesForLLM(logoCandidates, 10)
+        : { filteredCandidates: [], indexMap: new Map<number, number>() };
+
+    // TIER 2: Only call LLM if heuristics are uncertain
     const llmEnhancement = await enhanceBrandingWithLLM({
       jsAnalysis: jsBranding,
       buttons: buttonSnapshots,
       logoCandidates:
-        optimizedCandidates.length > 0 ? optimizedCandidates : undefined,
+        needsLLMValidation && filteredCandidates.length > 0
+          ? filteredCandidates
+          : undefined, // Don't send logo candidates if heuristics are confident
       brandName,
       backgroundCandidates:
         backgroundCandidates.length > 0 ? backgroundCandidates : undefined,
@@ -69,7 +75,121 @@ export async function brandingTransformer(
       url: document.url || meta.url,
     });
 
-    meta.logger.info("LLM enhancement complete", {
+    // Map LLM's filtered index back to original index
+    if (needsLLMValidation && llmEnhancement.logoSelection) {
+      const llmFilteredIndex = llmEnhancement.logoSelection.selectedLogoIndex;
+      const llmOriginalIndex = indexMap.get(llmFilteredIndex);
+
+      if (llmOriginalIndex !== undefined) {
+        // Update the selection with the original index
+        llmEnhancement.logoSelection.selectedLogoIndex = llmOriginalIndex;
+      }
+    }
+
+    // TIER 3: Merge heuristic and LLM results
+    if (heuristicResult && logoCandidates.length > 0) {
+      if (needsLLMValidation && llmEnhancement.logoSelection) {
+        // LLM validation was used - validate it against heuristic
+        const llmOriginalIndex = llmEnhancement.logoSelection.selectedLogoIndex;
+        const heuristicSelectedIndex = heuristicResult.selectedIndex;
+
+        // If LLM picked a different logo, validate it's not worse
+        if (
+          llmOriginalIndex !== undefined &&
+          llmOriginalIndex !== heuristicSelectedIndex &&
+          llmOriginalIndex >= 0 &&
+          llmOriginalIndex < logoCandidates.length
+        ) {
+          const llmCandidate = logoCandidates[llmOriginalIndex];
+          const heuristicCandidate = logoCandidates[heuristicSelectedIndex];
+
+          // Calculate logo sizes
+          const llmArea =
+            llmCandidate.position.width * llmCandidate.position.height;
+          const heuristicArea =
+            heuristicCandidate.position.width *
+            heuristicCandidate.position.height;
+
+          // Red flags: LLM picked a logo that's objectively worse
+          const llmIsWorse =
+            // LLM picked non-header logo when heuristic picked header logo
+            (!llmCandidate.indicators?.inHeader &&
+              heuristicCandidate.indicators?.inHeader) ||
+            // LLM picked non-visible logo when heuristic picked visible logo
+            (!llmCandidate.isVisible && heuristicCandidate.isVisible) ||
+            // LLM picked logo without href="/" when heuristic has it
+            (!llmCandidate.indicators?.hrefMatch &&
+              heuristicCandidate.indicators?.hrefMatch) ||
+            // LLM picked logo from body/footer when heuristic picked from header
+            (llmCandidate.location !== "header" &&
+              heuristicCandidate.location === "header") ||
+            // LLM picked much smaller logo (less than 50% of heuristic area) AND heuristic is in header
+            (llmArea < heuristicArea * 0.5 &&
+              heuristicCandidate.indicators?.inHeader) ||
+            // LLM picked very small logo (<500px²) when heuristic picked reasonable size
+            (llmArea < 500 && heuristicArea > 1000);
+
+          if (llmIsWorse) {
+            meta.logger.warn(
+              "LLM picked objectively worse logo - using heuristic instead",
+              {
+                llmOriginalIndex: llmOriginalIndex,
+                llmLocation: llmCandidate.location,
+                llmVisible: llmCandidate.isVisible,
+                llmInHeader: llmCandidate.indicators?.inHeader,
+                llmHrefMatch: llmCandidate.indicators?.hrefMatch,
+                llmArea: Math.round(llmArea),
+                llmSrc: llmCandidate.src.substring(0, 100),
+                heuristicIndex: heuristicSelectedIndex,
+                heuristicLocation: heuristicCandidate.location,
+                heuristicVisible: heuristicCandidate.isVisible,
+                heuristicInHeader: heuristicCandidate.indicators?.inHeader,
+                heuristicHrefMatch: heuristicCandidate.indicators?.hrefMatch,
+                heuristicArea: Math.round(heuristicArea),
+                heuristicSrc: heuristicCandidate.src.substring(0, 100),
+              },
+            );
+
+            // Override LLM with heuristic
+            llmEnhancement.logoSelection = {
+              selectedLogoIndex: heuristicResult.selectedIndex,
+              selectedLogoReasoning: `Heuristic preferred over LLM (LLM picked worse logo): ${heuristicResult.reasoning}`,
+              confidence: heuristicResult.confidence,
+            };
+          } else {
+            // LLM picked something different but not objectively worse - trust it
+            meta.logger.info(
+              "Using LLM-validated logo selection (different from heuristic but valid)",
+            );
+          }
+        } else {
+          // LLM agreed with heuristic or picked invalid index
+          meta.logger.info("Using LLM-validated logo selection");
+        }
+      } else if (!needsLLMValidation) {
+        // Heuristics were confident - use them directly
+        meta.logger.info(
+          "Using heuristic logo selection (high confidence, skipped LLM)",
+        );
+        llmEnhancement.logoSelection = {
+          selectedLogoIndex: heuristicResult.selectedIndex,
+          selectedLogoReasoning: heuristicResult.reasoning,
+          confidence: heuristicResult.confidence,
+        };
+      } else if (!llmEnhancement.logoSelection) {
+        // LLM was called but didn't return selection - fallback to heuristic
+        meta.logger.warn(
+          "LLM validation requested but didn't return selection, using heuristic",
+        );
+        llmEnhancement.logoSelection = {
+          selectedLogoIndex: heuristicResult.selectedIndex,
+          selectedLogoReasoning: `Heuristic fallback: ${heuristicResult.reasoning}`,
+          confidence: Math.max(heuristicResult.confidence - 0.1, 0.3), // Slightly lower confidence
+        };
+      }
+    }
+
+    meta.logger.info("Branding enhancement complete", {
       primary_btn_index: llmEnhancement.buttonClassification.primaryButtonIndex,
       secondary_btn_index:
         llmEnhancement.buttonClassification.secondaryButtonIndex,
@@ -77,6 +197,12 @@ export async function brandingTransformer(
       color_confidence: llmEnhancement.colorRoles.confidence,
       logo_selected_index: llmEnhancement.logoSelection?.selectedLogoIndex,
       logo_confidence: llmEnhancement.logoSelection?.confidence,
+      logo_selection_method: needsLLMValidation
+        ? llmEnhancement.logoSelection
+          ? "llm-validated"
+          : "heuristic-fallback"
+        : "heuristic-only",
+      llm_called_for_logo: needsLLMValidation,
     });
 
     brandingProfile = mergeBrandingResults(
@@ -93,6 +219,8 @@ export async function brandingTransformer(
     brandingProfile = jsBranding;
   }
 
+  // Keep logo selection reasoning in output (helpful for debugging)
+  // but remove button snapshots unless debug mode
   if (process.env.DEBUG_BRANDING !== "true") {
     delete (brandingProfile as any).__button_snapshots;
   }

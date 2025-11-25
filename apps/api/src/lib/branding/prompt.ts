@@ -171,9 +171,11 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
   // Add logo candidates section (optimized - compact format)
   if (logoCandidates && logoCandidates.length > 0) {
     prompt += `\n## Logo Candidates (${logoCandidates.length}):\n`;
+    prompt += `**IMPORTANT**: Look at the screenshot provided. The brand logo is almost always in the TOP/HEADER area of the page.\n`;
+    prompt += `Find the logo in the header area of the screenshot, then match it to one of the candidates below.\n\n`;
 
     if (brandName) {
-      prompt += `Brand: "${brandName}" - Use this to match logos visually.\n\n`;
+      prompt += `Brand Name: "${brandName}" - The logo should visually represent or contain this name.\n\n`;
     }
 
     // Compact format: index, location, visible, alt, indicators, href, truncated URL
@@ -203,31 +205,19 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
       prompt += `#${idx}: ${candidate.location} | ${candidate.isVisible ? "visible" : "hidden"} | ${typeLabel}${sourceInfo} | alt:"${candidate.alt || ""}" | [${indicators.join(", ")}]${hrefInfo} | ${urlPreview}\n`;
     });
 
-    prompt += `\n**CRITICAL LOGO SELECTION RULES:**\n`;
-    prompt += `1. **Brand Name Match**: The logo MUST visually represent or match the brand name "${brandName || "unknown"}"\n`;
-    prompt += `   - If you see text/logos that say DIFFERENT brand names, those are CUSTOMER/PARTNER logos - SKIP THEM\n`;
-    prompt += `   - Only select logos that match "${brandName || "the website's main brand"}"\n`;
-    prompt += `2. **Location**: Prefer logos in header/navbar (highest priority)\n`;
-    prompt += `3. **Href Indicator**: Logos that link to "/" (homepage) are VERY LIKELY the main brand logo\n`;
-    prompt += `   - href="/" or href="/home" indicates homepage logo - STRONG indicator\n`;
-    prompt += `   - Logos with hrefMatch indicator are prioritized\n`;
-    prompt += `4. **Text-Based Logos**: Some websites use styled text blocks (like "${brandName || "brand name"}" in a colored box) instead of image logos\n`;
-    prompt += `   - These are marked as "TEXT-BASED" in the candidate list\n`;
-    prompt += `   - Text-based logos are VALID and should be considered equally with image/SVG logos\n`;
-    prompt += `   - They often appear as the first element in the header/navbar\n`;
-    prompt += `   - The alt text shows the brand name text that was converted to an image\n`;
-    prompt += `5. **Visibility**: Prefer visible logos (not hidden by dark/light mode)\n`;
-    prompt += `6. **AVOID**:\n`;
-    prompt += `   - Customer/client logos (different brand names)\n`;
-    prompt += `   - Partner logos (different brand names)\n`;
-    prompt += `   - Testimonial logos (usually in testimonials/case studies sections)\n`;
-    prompt += `   - GitHub stars/social media icons\n`;
-    prompt += `   - Logos in footer (unless no header logo exists)\n`;
-    prompt += `   - Logos in "customers", "partners", "clients", "case studies" sections\n`;
-    prompt += `7. **Use Screenshot**: Look at the screenshot to visually identify which logo is the MAIN brand logo at the top of the page\n`;
-    prompt += `   - The logo in the header/navbar is almost always the brand logo\n`;
-    prompt += `   - If multiple logos exist, choose the one that matches "${brandName || "the website brand"}"\n`;
-    prompt += `   - Text-based logos appear as styled text blocks in the header - these are valid brand logos\n\n`;
+    prompt += `\n**LOGO SELECTION - SIMPLE APPROACH:**\n`;
+    prompt += `Look at the screenshot and select the MOST PROMINENT primary brand logo.\n\n`;
+    prompt += `**Simple Rules:**\n`;
+    prompt += `1. **Look at the TOP of the page** - The main logo is almost always in the header/navbar at the very top\n`;
+    prompt += `2. **Primary logo** - Choose the largest, most visible logo that represents "${brandName || "the website's brand"}"\n`;
+    prompt += `3. **Prefer header logos** - Logos in the header/navbar area are the brand logo (highest priority)\n`;
+    prompt += `4. **Ignore partner/client logos** - Skip smaller logos in "customers", "partners", or footer sections\n`;
+    prompt += `5. **Use the screenshot** - Visually identify which logo is THE main brand logo users see first\n\n`;
+    prompt += `**What to avoid:**\n`;
+    prompt += `- Customer/client logos (usually smaller, in groups, different brand names)\n`;
+    prompt += `- Social media icons\n`;
+    prompt += `- Footer logos (unless no header logo exists)\n\n`;
+    prompt += `Just pick the obvious main brand logo at the top of the page that users see first.\n\n`;
   }
 
   // Add background color candidates section
@@ -297,23 +287,36 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
   prompt += `   - Assign appropriate roles (heading, body, monospace, display)\n\n`;
 
   if (logoCandidates && logoCandidates.length > 0) {
-    prompt += `7. **Logo Selection**: Identify the best brand logo from the ${logoCandidates.length} candidates provided above.\n`;
+    prompt += `7. **Logo Selection** (REQUIRED - YOU MUST SELECT ONE): Identify the best brand logo from the ${logoCandidates.length} candidates provided above.\n`;
+    prompt += `   - **YOU MUST RETURN**: selectedLogoIndex (number), selectedLogoReasoning (string), and confidence (0-1)\n`;
     prompt += `   - **CRITICAL**: The logo MUST match the brand name "${brandName || "unknown"}"\n`;
-    prompt += `   - **REJECT** any logo that shows a DIFFERENT brand name - those are customer/partner logos\n`;
-    prompt += `   - Use the screenshot to visually identify which logo appears at the top of the page\n`;
-    prompt += `   - The logo should visually represent "${brandName || "the website's main brand"}"\n`;
-    prompt += `   - Prefer visible logos in header/navbar locations (these are almost always the brand logo)\n`;
+    prompt += `   - **DECISION PROCESS**:\n`;
+    prompt += `     1. Look at the screenshot - find the logo in the HEADER/TOP area\n`;
+    prompt += `     2. Check which candidate matches that visual position and appearance\n`;
+    prompt += `     3. Verify the candidate has indicators: "header", "href=home", or "alt=logo"\n`;
+    prompt += `     4. If multiple candidates look similar, prefer the one with href="/" (homepage link)\n`;
+    prompt += `     5. If you're unsure between 2-3 candidates, pick the one in the HIGHEST position (header)\n`;
+    prompt += `   - **STRONG INDICATORS** (prioritize candidates with these):\n`;
+    prompt += `     * "href:/" or "hrefMatch" → Logo links to homepage (VERY STRONG indicator of brand logo)\n`;
+    prompt += `     * "header" location → Logo in header/navbar area (STRONG indicator)\n`;
+    prompt += `     * "visible" → Logo is currently visible (preferred)\n`;
+    prompt += `     * "alt=logo" or alt text matching "${brandName || "brand name"}" → Likely the brand logo\n`;
     prompt += `   - **TEXT-BASED LOGOS**: Some candidates are marked "TEXT-BASED" - these are styled text blocks converted to images\n`;
     prompt += `     * They are VALID brand logos (many modern sites use text logos instead of images)\n`;
-    prompt += `     * Check the alt text to see the brand name - it should match "${brandName || "the brand"}"\n`;
-    prompt += `     * Text-based logos often appear as the first element in header/navbar\n`;
-    prompt += `   - **AVOID**:\n`;
-    prompt += `     * Customer/client logos (show different company names)\n`;
-    prompt += `     * Partner logos (show different company names)\n`;
-    prompt += `     * Logos in footer, testimonials, case studies, partners sections\n`;
+    prompt += `     * They usually appear as the FIRST element in the header\n`;
+    prompt += `     * The alt text shows the brand name text\n`;
+    prompt += `     * If you see "TEXT-BASED" with "header" + "href:/" → HIGH probability it's the brand logo\n`;
+    prompt += `   - **AVOID** (return -1 if ALL candidates are these):\n`;
+    prompt += `     * Customer/client logos (different brand names than "${brandName || "unknown"}")\n`;
+    prompt += `     * Partner/testimonial logos (usually in body, not header)\n`;
+    prompt += `     * Footer logos (unless no header logo exists)\n`;
     prompt += `     * GitHub stars, social media icons, badges\n`;
-    prompt += `   - Return the logo INDEX (0-${logoCandidates.length - 1}) and explain your reasoning\n`;
-    prompt += `   - **If you see a logo with a different brand name than "${brandName || "the website brand"}", it's NOT the brand logo - return -1 if no suitable logo matches the brand\n\n`;
+    prompt += `     * Logos in "customers", "partners", "case studies" sections\n`;
+    prompt += `   - **RETURN FORMAT**:\n`;
+    prompt += `     * selectedLogoIndex: The INDEX number (0-${logoCandidates.length - 1}) of the best logo, or -1 if none match the brand\n`;
+    prompt += `     * selectedLogoReasoning: "Selected #X because [it has href:/, in header, matches brand name, etc.]" OR "No logo matches brand name '${brandName || "unknown"}' - all appear to be customer/partner logos"\n`;
+    prompt += `     * confidence: 0.8-1.0 if sure, 0.5-0.7 if uncertain, 0.0-0.4 if no good match\n`;
+    prompt += `   - **DEFAULT STRATEGY if unsure**: Select candidate #0 (highest scored by heuristics) UNLESS it clearly doesn't match the brand\n\n`;
   }
 
   prompt += `## VALIDATION CHECKLIST - VERIFY BEFORE RESPONDING:\n`;

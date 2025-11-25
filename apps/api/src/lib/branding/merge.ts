@@ -11,14 +11,16 @@ export function mergeBrandingResults(
     alt: string;
     isSvg: boolean;
     isVisible: boolean;
-    location: "header" | "body";
+    location: "header" | "body" | "footer";
     position: { top: number; left: number; width: number; height: number };
     indicators: {
       inHeader: boolean;
       altMatch: boolean;
       srcMatch: boolean;
       classMatch: boolean;
+      hrefMatch: boolean;
     };
+    href?: string;
     source: string;
   }>,
 ): BrandingProfile {

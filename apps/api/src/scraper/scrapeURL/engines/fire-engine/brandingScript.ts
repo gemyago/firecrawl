@@ -439,19 +439,15 @@ export const getBrandingScript = () => String.raw`
       
       // Use higher DPI for better quality (2x for retina displays)
       const scale = 2;
-      const padding = 8;
       const canvas = document.createElement('canvas');
-      canvas.width = (rect.width + padding * 2) * scale;
-      canvas.height = (rect.height + padding * 2) * scale;
+      canvas.width = rect.width * scale;
+      canvas.height = rect.height * scale;
       const ctx = canvas.getContext('2d');
       
       if (!ctx) return null;
       
       // Scale context for high DPI
       ctx.scale(scale, scale);
-      
-      // Set up text rendering context
-      ctx.textBaseline = 'top';
       
       // Get computed styles
       const fontSize = cs.fontSize || '16px';
@@ -464,9 +460,10 @@ export const getBrandingScript = () => String.raw`
       // Set font
       ctx.font = fontStyle + ' ' + fontWeight + ' ' + fontSize + ' ' + fontFamily;
       
-      // Get text alignment
-      const textAlign = cs.textAlign || 'left';
-      ctx.textAlign = textAlign;
+      // Get text alignment (but we'll center it regardless)
+      const textAlign = cs.textAlign || 'center';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       
       // Fill background
       const bgIsTransparent = bgColor === 'transparent' || bgColor === 'rgba(0, 0, 0, 0)';
@@ -499,24 +496,30 @@ export const getBrandingScript = () => String.raw`
       
       if (!text) return null;
       
-      // Calculate text position
-      let textX = padding;
-      const textY = padding;
-      
-      // Handle text alignment
-      if (textAlign === 'center') {
-        textX = (canvas.width / scale) / 2;
-      } else if (textAlign === 'right') {
-        textX = (canvas.width / scale) - padding;
-      }
+      // Calculate canvas dimensions
+      const canvasWidth = rect.width;
+      const canvasHeight = rect.height;
       
       // Handle multi-line text if needed
-      const lines = text.split('\n');
-      const lineHeight = parseFloat(fontSize) * 1.2;
+      const lines = text.split('\n').filter(line => line.trim());
+      const fontSizeNum = parseFloat(fontSize) || 16;
+      const lineHeight = fontSizeNum * 1.2;
       
+      // Calculate total text height
+      const totalTextHeight = lines.length * lineHeight;
+      
+      // Center vertically: start from middle and offset by half the total height
+      const centerY = canvasHeight / 2;
+      const startY = centerY - (totalTextHeight / 2) + (lineHeight / 2);
+      
+      // Center horizontally
+      const centerX = canvasWidth / 2;
+      
+      // Draw each line, centered horizontally and vertically
       lines.forEach((line, idx) => {
         if (line.trim()) {
-          ctx.fillText(line, textX, textY + idx * lineHeight);
+          const y = startY + (idx * lineHeight);
+          ctx.fillText(line, centerX, y);
         }
       });
       
@@ -706,7 +709,8 @@ export const getBrandingScript = () => String.raw`
         srcMatch = el.src ? /logo/i.test(el.src) : false;
         altMatch = /logo/i.test(alt);
         const imgClass = el.className || "";
-        classMatch = /logo/i.test(imgClass);
+        // Check both the image's own classes AND parent containers for logo classes
+        classMatch = /logo/i.test(imgClass) || el.closest('[class*="logo"], [id*="logo"]') !== null;
       }
       
       let src = "";
@@ -774,6 +778,8 @@ export const getBrandingScript = () => String.raw`
       '[id*="navbar"] a img, [id*="navbar"] a svg, [id*="navbar"] img, [id*="navbar"] svg',
       '[class*="navbar"] a img, [class*="navbar"] a svg, [class*="navbar"] img, [class*="navbar"] svg',
       'a[class*="logo"] img, a[class*="logo"] svg',
+      '[class*="logo"] img, [class*="logo"] svg', // Images INSIDE logo containers
+      '[id*="logo"] img, [id*="logo"] svg', // Images INSIDE logo containers by ID
       'img[class*="nav-logo"], svg[class*="nav-logo"]',
       'img[class*="logo"], svg[class*="logo"]',
     ];
