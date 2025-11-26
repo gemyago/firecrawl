@@ -11,7 +11,7 @@ import {
 import { billTeam } from "../../services/billing/credit_billing";
 import { v7 as uuidv7 } from "uuid";
 import { addScrapeJob, waitForJob } from "../../services/queue-jobs";
-import { logJob } from "../../services/logging/log_job";
+import { logSearch } from "../../services/logging/log_job";
 import { search } from "../../search/v2";
 import { isUrlBlocked } from "../../scraper/WebScraper/utils/blocklist";
 import * as Sentry from "@sentry/node";
@@ -507,35 +507,24 @@ export async function searchController(
           time_taken: timeTakenInSeconds,
           scrapeIds,
         });
-        if (!isZDROrAnon) {
-          logJob(
-            {
-              job_id: jobId,
-              success: true,
-              num_docs:
-                (searchResponse.web?.length ?? 0) +
-                (searchResponse.images?.length ?? 0) +
-                (searchResponse.news?.length ?? 0),
-              docs: [searchResponse],
-              time_taken: timeTakenInSeconds,
-              team_id: req.auth.team_id,
-              mode: "search",
-              url: req.body.query,
-              scrapeOptions: req.body.scrapeOptions,
-              crawlerOptions: {
-                ...req.body,
-                query: undefined,
-                scrapeOptions: undefined,
-              },
-              origin: req.body.origin,
-              integration: req.body.integration,
-              credits_billed,
-              zeroDataRetention: false,
-            },
-            false,
-            isSearchPreview,
-          );
-        }
+
+        logSearch(
+          {
+            id: jobId,
+            request_id: jobId,
+            query: req.body.query,
+            success: true,
+            error: undefined,
+            results: searchResponse as any,
+            num_results: totalResultsCount,
+            time_taken: timeTakenInSeconds,
+            team_id: req.auth.team_id,
+            options: req.body,
+            credits_cost: credits_billed,
+            zeroDataRetention: isZDROrAnon ?? false,
+          },
+          false,
+        );
 
         // Log final timing information for async mode
         const totalRequestTime = new Date().getTime() - middlewareStartTime;
@@ -667,40 +656,28 @@ export async function searchController(
     const endTime = new Date().getTime();
     const timeTakenInSeconds = (endTime - middlewareStartTime) / 1000;
 
-    if (!isZDROrAnon) {
-      logger.info("Logging job", {
-        num_docs: credits_billed,
+    logger.info("Logging job", {
+      num_docs: credits_billed,
+      time_taken: timeTakenInSeconds,
+    });
+
+    logSearch(
+      {
+        id: jobId,
+        request_id: jobId,
+        query: req.body.query,
+        success: true,
+        error: undefined,
+        results: searchResponse as any,
+        num_results: totalResultsCount,
         time_taken: timeTakenInSeconds,
-      });
-      logJob(
-        {
-          job_id: jobId,
-          success: true,
-          num_docs:
-            (searchResponse.web?.length ?? 0) +
-            (searchResponse.images?.length ?? 0) +
-            (searchResponse.news?.length ?? 0),
-          docs: [searchResponse],
-          time_taken: timeTakenInSeconds,
-          team_id: req.auth.team_id,
-          mode: "search",
-          url: req.body.query,
-          scrapeOptions: req.body.scrapeOptions,
-          crawlerOptions: {
-            ...req.body,
-            query: undefined,
-            scrapeOptions: undefined,
-            asyncScraping: isAsyncScraping,
-          },
-          origin: req.body.origin,
-          integration: req.body.integration,
-          credits_billed,
-          zeroDataRetention: false, // not supported
-        },
-        false,
-        isSearchPreview,
-      );
-    }
+        team_id: req.auth.team_id,
+        options: req.body,
+        credits_cost: credits_billed,
+        zeroDataRetention: isZDROrAnon ?? false, // not supported
+      },
+      false,
+    );
 
     // Log final timing information
     const totalRequestTime = new Date().getTime() - middlewareStartTime;
