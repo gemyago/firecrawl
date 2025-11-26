@@ -1,6 +1,5 @@
 export const getBrandingScript = () => String.raw`
 (function __extractBrandDesign() {
-  // Collect errors to return with results (since we can't access console in CDP)
   const errors = [];
   const recordError = (context, error) => {
     errors.push({
@@ -10,7 +9,6 @@ export const getBrandingScript = () => String.raw`
     });
   };
 
-  // Constants for better maintainability
   const CONSTANTS = {
     BUTTON_MIN_WIDTH: 50,
     BUTTON_MIN_HEIGHT: 25,
@@ -27,7 +25,6 @@ export const getBrandingScript = () => String.raw`
     DUPLICATE_POSITION_THRESHOLD: 1,
   };
 
-  // Cache for computed styles to avoid recalculation
   const styleCache = new WeakMap();
   const getComputedStyleCached = (el) => {
     if (styleCache.has(el)) {
@@ -138,7 +135,6 @@ export const getBrandingScript = () => String.raw`
       try {
         rules = sheet.cssRules;
       } catch (e) {
-        // Cross-origin stylesheets can't be accessed
         recordError('collectCSSData - CORS stylesheet', e);
         continue;
       }
@@ -197,22 +193,19 @@ export const getBrandingScript = () => String.raw`
     return data;
   };
 
-  // Shared button detection logic - used by both sampleElements and getStyleSnapshot
   const checkButtonLikeElement = (el, cs, rect, classNames) => {
-    // Check for common button class patterns (Tailwind, Bootstrap, etc.)
     const hasButtonClasses = 
-      /rounded(-md|-lg|-xl|-full)?/.test(classNames) || // rounded corners
-      /px-\d+/.test(classNames) || // horizontal padding (px-2, px-4, etc.)
-      /py-\d+/.test(classNames) || // vertical padding (py-2, py-4, etc.)
-      /p-\d+/.test(classNames) || // padding (p-2, p-4, etc.)
-      (/border/.test(classNames) && /rounded/.test(classNames)) || // border + rounded
-      (/inline-flex/.test(classNames) && /items-center/.test(classNames) && /justify-center/.test(classNames)); // flexbox button pattern
+      /rounded(-md|-lg|-xl|-full)?/.test(classNames) ||
+      /px-\d+/.test(classNames) ||
+      /py-\d+/.test(classNames) ||
+      /p-\d+/.test(classNames) ||
+      (/border/.test(classNames) && /rounded/.test(classNames)) ||
+      (/inline-flex/.test(classNames) && /items-center/.test(classNames) && /justify-center/.test(classNames));
     
     if (hasButtonClasses && rect.width > CONSTANTS.BUTTON_MIN_WIDTH && rect.height > CONSTANTS.BUTTON_MIN_HEIGHT) {
       return true;
     }
     
-    // Check computed styles for button-like appearance
     const paddingTop = parseFloat(cs.paddingTop) || 0;
     const paddingBottom = parseFloat(cs.paddingBottom) || 0;
     const paddingLeft = parseFloat(cs.paddingLeft) || 0;
@@ -226,20 +219,16 @@ export const getBrandingScript = () => String.raw`
     const hasBorder = parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0 ||
                      parseFloat(cs.borderLeftWidth) > 0 || parseFloat(cs.borderRightWidth) > 0;
     
-    // Button-like if has padding + (rounded or border) and reasonable size
     return hasPadding && hasMinSize && (hasRounded || hasBorder);
   };
 
-  // Helper to check if an element looks like a button (has button-like styling)
   const looksLikeButton = (el) => {
     if (!el || typeof el.matches !== 'function') return false;
     
-    // Check explicit button indicators
     if (el.matches('button, [role=button], [data-primary-button], [data-secondary-button], [data-cta], a.button, a.btn, [class*="btn"], [class*="button"], a[class*="bg-brand"], a[class*="bg-primary"], a[class*="bg-accent"], a[type="button"]')) {
       return true;
     }
     
-    // For links, check if they have button-like styling
     if (el.tagName.toLowerCase() === 'a') {
       try {
         const classNames = (el.className || '').toLowerCase();
@@ -257,7 +246,6 @@ export const getBrandingScript = () => String.raw`
   };
 
   const sampleElements = () => {
-    // Use a Set to deduplicate elements as we collect them
     const picksSet = new Set();
     
     const pushQ = (q, limit = 10) => {
@@ -272,14 +260,11 @@ export const getBrandingScript = () => String.raw`
 
     pushQ('header img, .site-logo img, img[alt*=logo i], img[src*="logo"]', 5);
     
-    // First, get explicit buttons (including form submit/button inputs)
     pushQ(
       'button, input[type="submit"], input[type="button"], [role=button], [data-primary-button], [data-secondary-button], [data-cta], a.button, a.btn, [class*="btn"], [class*="button"], a[class*="bg-brand"], a[class*="bg-primary"], a[class*="bg-accent"]',
       100,
     );
     
-    // Also check links for button-like styling (but only if not already captured)
-    // Limit to first 100 links for performance
     const allLinks = document.querySelectorAll('a');
     let linkCount = 0;
     for (const link of allLinks) {
@@ -330,24 +315,18 @@ export const getBrandingScript = () => String.raw`
       }
     }
 
-    // Get colors as-is from computed style
     let bgColor = cs.getPropertyValue("background-color");
     const textColor = cs.getPropertyValue("color");
     
-    // For input fields, if background is default browser background (like white/light gray),
-    // keep it as is. For transparent backgrounds, try to get from parent container.
     const isTransparent = bgColor === "transparent" || bgColor === "rgba(0, 0, 0, 0)";
     const alphaMatch = bgColor.match(/rgba?\([^,]*,[^,]*,[^,]*,\s*([\d.]+)\)/);
     const hasZeroAlpha = alphaMatch && parseFloat(alphaMatch[1]) === 0;
     
-    // For input/select/textarea fields, keep the actual background even if it's white
-    // (browser default backgrounds are important for form fields)
     const isInputElement = el.tagName.toLowerCase() === 'input' || 
                           el.tagName.toLowerCase() === 'select' || 
                           el.tagName.toLowerCase() === 'textarea';
     
     if ((isTransparent || hasZeroAlpha) && !isInputElement) {
-      // Walk up the DOM to find a non-transparent background
       let parent = el.parentElement;
       let depth = 0;
       while (parent && depth < CONSTANTS.MAX_PARENT_TRAVERSAL) {
@@ -365,17 +344,13 @@ export const getBrandingScript = () => String.raw`
       }
     }
 
-    // Check if element is a button - use shared detection logic
     let isButton = false;
     if (el.matches('button,input[type="submit"],input[type="button"],[role=button],[data-primary-button],[data-secondary-button],[data-cta],a.button,a.btn,[class*="btn"],[class*="button"],a[class*="bg-brand"],a[class*="bg-primary"],a[class*="bg-accent"]')) {
       isButton = true;
     } else if (el.tagName.toLowerCase() === 'a') {
-      // Check if link looks like a button (has button-like styling)
       try {
         isButton = checkButtonLikeElement(el, cs, rect, classNames);
-      } catch (e) {
-        // If we can't check styles, not a button
-      }
+      } catch (e) {}
     }
 
     let isNavigation = false;
@@ -390,7 +365,6 @@ export const getBrandingScript = () => String.raw`
         el.getAttribute("data-secondary-button") === "true";
 
       if (!hasCTAIndicator) {
-        // Check for navigation-related classes and attributes
         const hasNavClass = classNames.includes("nav-") ||
           classNames.includes("-nav") ||
           classNames.includes("nav-anchor") ||
@@ -402,17 +376,14 @@ export const getBrandingScript = () => String.raw`
           classNames.includes("toggle") ||
           classNames.includes("trigger");
         
-        // Check for navigation-related roles and attributes
         const hasNavRole = el.matches(
           '[role="tab"],[role="menuitem"],[role="menuitemcheckbox"],[aria-haspopup],[aria-expanded]',
         );
         
-        // Check if in navigation contexts (sidebar, nav, menu, etc.)
         const inNavContext = !!el.closest(
           'nav, [role="navigation"], [role="menu"], [role="menubar"], [class*="navigation"], [class*="dropdown"], [class*="sidebar"], [id*="sidebar"], [id*="navigation"], [id*="nav-"], aside[class*="nav"], aside[id*="nav"]',
         );
         
-        // Check if it's a link in a list item (common nav pattern)
         let isNavLink = false;
         if (el.tagName.toLowerCase() === "a" && el.parentElement) {
           if (el.parentElement.tagName.toLowerCase() === "li") {
@@ -427,7 +398,6 @@ export const getBrandingScript = () => String.raw`
       }
     } catch (e) {}
 
-    // Get text content - for input buttons, use value attribute
     let text = "";
     if (el.tagName.toLowerCase() === 'input' && (el.type === 'submit' || el.type === 'button')) {
       text = (el.value && el.value.trim().substring(0, 100)) || "";
@@ -435,7 +405,6 @@ export const getBrandingScript = () => String.raw`
       text = (el.textContent && el.textContent.trim().substring(0, 100)) || "";
     }
 
-    // Get input field metadata if this is an input/select/textarea
     const isInputField = el.matches('input:not([type="submit"]):not([type="button"]),select,textarea,[class*="form-control"]');
     let inputMetadata = null;
     if (isInputField) {
@@ -448,16 +417,13 @@ export const getBrandingScript = () => String.raw`
         disabled: el.disabled || false,
         name: el.name || "",
         id: el.id || "",
-        // Try to find associated label
         label: (() => {
           if (el.id) {
             const label = document.querySelector('label[for="' + el.id + '"]');
             if (label) return (label.textContent || "").trim().substring(0, 100);
           }
-          // Try parent label
           const parentLabel = el.closest('label');
           if (parentLabel) {
-            // Get label text excluding input text
             const clone = parentLabel.cloneNode(true);
             const inputInClone = clone.querySelector('input,select,textarea');
             if (inputInClone) inputInClone.remove();
@@ -476,15 +442,12 @@ export const getBrandingScript = () => String.raw`
       colors: {
         text: textColor,
         background: bgColor,
-        // Get border from all sides - prefer the most consistent one
         border: (() => {
           const top = cs.getPropertyValue("border-top-color");
           const right = cs.getPropertyValue("border-right-color");
           const bottom = cs.getPropertyValue("border-bottom-color");
           const left = cs.getPropertyValue("border-left-color");
-          // If all sides are the same, use that
           if (top === right && top === bottom && top === left) return top;
-          // Otherwise use top (most common)
           return top;
         })(),
         borderWidth: (() => {
@@ -492,9 +455,7 @@ export const getBrandingScript = () => String.raw`
           const right = toPx(cs.getPropertyValue("border-right-width"));
           const bottom = toPx(cs.getPropertyValue("border-bottom-width"));
           const left = toPx(cs.getPropertyValue("border-left-width"));
-          // If all sides are the same, use that
           if (top === right && top === bottom && top === left) return top;
-          // Otherwise use top
           return top;
         })(),
         borderTop: cs.getPropertyValue("border-top-color"),
@@ -528,19 +489,16 @@ export const getBrandingScript = () => String.raw`
     };
   };
 
-  // Convert a text element to an image (canvas-based)
   const textElementToImage = (el) => {
     try {
       const rect = el.getBoundingClientRect();
       const cs = getComputedStyleCached(el);
       
-      // Skip if element is too small or invisible
       if (rect.width < 20 || rect.height < 10 || rect.width === 0 || rect.height === 0) {
         return null;
       }
       
-      // Use higher DPI for better quality (2x for retina displays)
-      const scale = 2;
+      const scale = CONSTANTS.CANVAS_SCALE;
       const canvas = document.createElement('canvas');
       canvas.width = rect.width * scale;
       canvas.height = rect.height * scale;
@@ -548,10 +506,8 @@ export const getBrandingScript = () => String.raw`
       
       if (!ctx) return null;
       
-      // Scale context for high DPI
       ctx.scale(scale, scale);
       
-      // Get computed styles
       const fontSize = cs.fontSize || '16px';
       const fontFamily = cs.fontFamily || 'sans-serif';
       const fontWeight = cs.fontWeight || 'normal';
@@ -559,26 +515,19 @@ export const getBrandingScript = () => String.raw`
       const textColor = cs.color || 'rgb(0, 0, 0)';
       const bgColor = cs.backgroundColor || 'transparent';
       
-      // Set font
       ctx.font = fontStyle + ' ' + fontWeight + ' ' + fontSize + ' ' + fontFamily;
-      
-      // Get text alignment (but we'll center it regardless)
-      const textAlign = cs.textAlign || 'center';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      // Fill background
       const bgIsTransparent = bgColor === 'transparent' || bgColor === 'rgba(0, 0, 0, 0)';
       if (!bgIsTransparent) {
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
       } else {
-        // Transparent background - fill with white for better visibility
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
       }
       
-      // Draw border if present
       const borderWidth = parseFloat(cs.borderTopWidth) || 0;
       const borderColor = cs.borderTopColor || 'transparent';
       if (borderWidth > 0 && borderColor !== 'transparent') {
@@ -592,32 +541,25 @@ export const getBrandingScript = () => String.raw`
         );
       }
       
-      // Draw text
       ctx.fillStyle = textColor;
       const text = el.textContent?.trim() || '';
       
       if (!text) return null;
       
-      // Calculate canvas dimensions
       const canvasWidth = rect.width;
       const canvasHeight = rect.height;
       
-      // Handle multi-line text if needed
       const lines = text.split('\n').filter(line => line.trim());
       const fontSizeNum = parseFloat(fontSize) || 16;
       const lineHeight = fontSizeNum * 1.2;
       
-      // Calculate total text height
       const totalTextHeight = lines.length * lineHeight;
       
-      // Center vertically: start from middle and offset by half the total height
       const centerY = canvasHeight / 2;
       const startY = centerY - (totalTextHeight / 2) + (lineHeight / 2);
       
-      // Center horizontally
       const centerX = canvasWidth / 2;
       
-      // Draw each line, centered horizontally and vertically
       lines.forEach((line, idx) => {
         if (line.trim()) {
           const y = startY + (idx * lineHeight);
@@ -625,7 +567,6 @@ export const getBrandingScript = () => String.raw`
         }
       });
       
-      // Convert to data URL
       return canvas.toDataURL('image/png');
     } catch (e) {
       recordError('textElementToImage', e);
@@ -633,11 +574,9 @@ export const getBrandingScript = () => String.raw`
     }
   };
 
-  // Detect text-based logos (brand names in styled blocks)
   const findTextBasedLogos = () => {
     const candidates = [];
     
-    // Look for text elements in header/nav that could be logos
     const headerNavSelectors = [
       'header a',
       'header span',
@@ -662,9 +601,7 @@ export const getBrandingScript = () => String.raw`
         Array.from(document.querySelectorAll(selector)).forEach(el => {
           allElements.add(el);
         });
-      } catch (e) {
-        // Skip invalid selectors
-      }
+      } catch (e) {}
     });
     
     Array.from(allElements).forEach(el => {
@@ -673,17 +610,14 @@ export const getBrandingScript = () => String.raw`
         const cs = getComputedStyleCached(el);
         const text = el.textContent?.trim() || '';
         
-        // Skip if no text or too long (logos are usually short)
         if (!text || text.length > CONSTANTS.LOGO_MAX_TEXT_LENGTH) return;
         
-        // Skip if element is invisible or too small
         if (rect.width < 20 || rect.height < 10 || 
             cs.display === 'none' || cs.visibility === 'hidden' || 
             parseFloat(cs.opacity) === 0) {
           return;
         }
         
-        // Check if element has logo-like styling
         const bgColor = cs.backgroundColor;
         const hasBackground = bgColor && bgColor !== 'transparent' && bgColor !== 'rgba(0, 0, 0, 0)';
         const hasBorder = parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0 ||
@@ -692,29 +626,20 @@ export const getBrandingScript = () => String.raw`
         const hasPadding = parseFloat(cs.paddingTop) > 0 || parseFloat(cs.paddingBottom) > 0 ||
                           parseFloat(cs.paddingLeft) > 0 || parseFloat(cs.paddingRight) > 0;
         
-        // Check if it's in header/nav context
         const inHeader = el.closest('header, nav, [role="banner"], #navbar, [id*="navbar"], [class*="navbar"], [class*="header"]');
         
-        // Check if it links to homepage (strong logo indicator)
         const href = el.tagName.toLowerCase() === 'a' ? (el.getAttribute('href') || '') : '';
         const hrefMatch = href === '/' || href === '/home' || href === '/index' || href === '';
         
-        // Check for logo-related classes/attributes
         const classNames = (el.className || '').toLowerCase();
         const hasLogoClass = /logo|brand|site-name|site-title/i.test(classNames);
         
-        // Check if it's a CTA button (we want to exclude these)
         const hasCTAIndicator = 
           el.matches('[data-primary-button],[data-secondary-button],[data-cta],[class*="cta"],[class*="hero"]') ||
           el.getAttribute('data-primary-button') === 'true' ||
           el.getAttribute('data-secondary-button') === 'true' ||
           /button|btn|cta/i.test(classNames);
         
-        // Criteria for text-based logo:
-        // 1. In header/nav AND links to "/" (homepage) AND has styled appearance (background/border/padding)
-        // 2. In header/nav AND has logo class
-        // 3. In header/nav AND is first/last child of header/nav container AND has styled appearance
-        // 4. Short text (logo-like) in header with background/border (but not a CTA button)
         const isFirstInContainer = el.parentElement && el.parentElement.firstElementChild === el;
         const isLastInContainer = el.parentElement && el.parentElement.lastElementChild === el;
         const isEarlyInHeader = inHeader && (isFirstInContainer || isLastInContainer);
@@ -726,7 +651,6 @@ export const getBrandingScript = () => String.raw`
           (inHeader && (hasBackground || (hasBorder && hasBorderRadius)) && text.length <= CONSTANTS.TEXT_LOGO_THRESHOLD && !hasCTAIndicator);
         
         if (looksLikeTextLogo) {
-          // Convert to image
           const imageDataUrl = textElementToImage(el);
           if (imageDataUrl) {
             const anchorParent = el.closest('a') || (el.tagName.toLowerCase() === 'a' ? el : null);
@@ -744,9 +668,7 @@ export const getBrandingScript = () => String.raw`
             });
           }
         }
-      } catch (e) {
-        // Skip errors
-      }
+      } catch (e) {}
     });
     
     return candidates;
@@ -766,7 +688,6 @@ export const getBrandingScript = () => String.raw`
       "twitter",
     );
 
-    // Helper to collect logo candidate metadata
     const collectLogoCandidate = (el, source) => {
       const rect = el.getBoundingClientRect();
       const style = getComputedStyleCached(el);
@@ -780,13 +701,11 @@ export const getBrandingScript = () => String.raw`
 
       const inHeader = el.closest('header, nav, [role="banner"], #navbar, [id*="navbar"], [class*="navbar"], [class*="header"]');
       
-      // Check if logo is inside an anchor tag and get its href
       const anchorParent = el.closest('a');
       const href = anchorParent ? (anchorParent.getAttribute('href') || '') : '';
       
       const isSvg = el.tagName.toLowerCase() === "svg";
       
-      // For SVGs, check different properties
       let alt = "";
       let srcMatch = false;
       let altMatch = false;
@@ -794,7 +713,6 @@ export const getBrandingScript = () => String.raw`
       let hrefMatch = false;
       
       if (isSvg) {
-        // SVGs don't have alt/src, check id, className, aria-label, and title
         const svgId = el.id || "";
         const svgClass = el.className?.baseVal || el.className || "";
         const svgAriaLabel = el.getAttribute("aria-label") || "";
@@ -804,15 +722,12 @@ export const getBrandingScript = () => String.raw`
         alt = svgAriaLabel || svgTitle || svgText || svgId || "";
         altMatch = /logo/i.test(svgId) || /logo/i.test(svgAriaLabel) || /logo/i.test(svgTitle);
         classMatch = /logo/i.test(svgClass);
-        // For SVGs, we'll check if it's in a logo container
         srcMatch = el.closest('[class*="logo"], [id*="logo"]') !== null;
       } else {
-        // For images
         alt = el.alt || "";
         srcMatch = el.src ? /logo/i.test(el.src) : false;
         altMatch = /logo/i.test(alt);
         const imgClass = el.className || "";
-        // Check both the image's own classes AND parent containers for logo classes
         classMatch = /logo/i.test(imgClass) || el.closest('[class*="logo"], [id*="logo"]') !== null;
       }
       
@@ -825,7 +740,6 @@ export const getBrandingScript = () => String.raw`
           src = "data:image/svg+xml;utf8," + encodeURIComponent(serializer.serializeToString(resolvedSvg));
         } catch (e) {
           recordError('resolveSvgStyles', e);
-          // If serialization fails, try to serialize the original SVG
           try {
             const serializer = new XMLSerializer();
             src = "data:image/svg+xml;utf8," + encodeURIComponent(serializer.serializeToString(el));
@@ -838,11 +752,8 @@ export const getBrandingScript = () => String.raw`
         src = el.src || "";
       }
 
-      // Check if href indicates homepage/root (common logo pattern)
       if (href) {
         const normalizedHref = href.toLowerCase().trim();
-        // Logos typically link to homepage: "/", "/home", "/index", or empty
-        // Note: "#" is NOT included as it's commonly used for navigation dropdowns
         hrefMatch = normalizedHref === '/' || 
                    normalizedHref === '/home' || 
                    normalizedHref === '/index' || 
@@ -870,9 +781,6 @@ export const getBrandingScript = () => String.raw`
       }
     };
 
-    // Collect all potential logo candidates (including hidden ones for LLM to decide)
-    // More comprehensive selectors - include SVGs directly in header/nav, not just in anchors
-    // Also check for elements with class="header" (not just <header> tag)
     const allLogoSelectors = [
       'header a img, header a svg, header img, header svg',
       '[class*="header"] a img, [class*="header"] a svg, [class*="header"] img, [class*="header"] svg',
@@ -882,8 +790,8 @@ export const getBrandingScript = () => String.raw`
       '[id*="navbar"] a img, [id*="navbar"] a svg, [id*="navbar"] img, [id*="navbar"] svg',
       '[class*="navbar"] a img, [class*="navbar"] a svg, [class*="navbar"] img, [class*="navbar"] svg',
       'a[class*="logo"] img, a[class*="logo"] svg',
-      '[class*="logo"] img, [class*="logo"] svg', // Images INSIDE logo containers
-      '[id*="logo"] img, [id*="logo"] svg', // Images INSIDE logo containers by ID
+      '[class*="logo"] img, [class*="logo"] svg',
+      '[id*="logo"] img, [id*="logo"] svg',
       'img[class*="nav-logo"], svg[class*="nav-logo"]',
       'img[class*="logo"], svg[class*="logo"]',
     ];
@@ -894,7 +802,6 @@ export const getBrandingScript = () => String.raw`
       });
     });
 
-    // Also collect from document.images and SVGs
     const excludeSelectors = '[class*="testimonial"], [class*="client"], [class*="partner"], [class*="customer"], [class*="case-study"], [id*="testimonial"], [id*="client"], [id*="partner"], [id*="customer"], [id*="case-study"], footer, [class*="footer"]';
     
     Array.from(document.images).forEach(img => {
@@ -903,21 +810,16 @@ export const getBrandingScript = () => String.raw`
         /logo/i.test(img.src) ||
         img.closest('[class*="logo"]')
       ) {
-        // Exclude customer/partner logos more aggressively
         if (!img.closest(excludeSelectors)) {
           collectLogoCandidate(img, "document.images");
         }
       }
     });
 
-    // Collect SVGs from various sources - catch any SVGs in header/nav that weren't caught by selectors
-    // This is a fallback to ensure we catch all SVGs that the original logic would have found
     Array.from(document.querySelectorAll("svg")).forEach(svg => {
-      // Skip if already collected by selectors above (check by position to avoid re-serialization)
       const svgRect = svg.getBoundingClientRect();
       const alreadyCollected = logoCandidates.some(c => {
         if (!c.isSvg) return false;
-        // Check if position matches (same SVG element)
         return Math.abs(c.position.top - svgRect.top) < 1 && 
                Math.abs(c.position.left - svgRect.left) < 1 &&
                Math.abs(c.position.width - svgRect.width) < 1 &&
@@ -925,7 +827,6 @@ export const getBrandingScript = () => String.raw`
       });
       if (alreadyCollected) return;
       
-      // Check if SVG matches logo criteria - VERY permissive (like old code)
       const hasLogoId = /logo/i.test(svg.id || "");
       const svgClass = svg.className?.baseVal || svg.className || "";
       const hasLogoClass = /logo/i.test(svgClass);
@@ -936,12 +837,6 @@ export const getBrandingScript = () => String.raw`
       const inHeaderNavArea = !!inHeaderNav;
       const inAnchorInHeader = svg.closest('a') && inHeaderNav;
       
-      // VERY PERMISSIVE: Collect if:
-      // 1. Has logo indicators (id, class, aria-label, title)
-      // 2. Is in logo container
-      // 3. Is in header/nav (most common case - no size constraint, like old code)
-      // 4. Is in anchor in header/nav
-      // This matches the original logic which was very permissive
       const shouldCollect = 
         hasLogoId ||
         hasLogoClass ||
@@ -952,7 +847,6 @@ export const getBrandingScript = () => String.raw`
         inAnchorInHeader;
       
       if (shouldCollect) {
-        // Exclude customer/partner logos more aggressively
         const excludeSelectors = '[class*="testimonial"], [class*="client"], [class*="partner"], [class*="customer"], [class*="case-study"], [id*="testimonial"], [id*="client"], [id*="partner"], [id*="customer"], [id*="case-study"], footer, [class*="footer"]';
         if (!svg.closest(excludeSelectors)) {
           collectLogoCandidate(svg, "document.querySelectorAll(svg)");
@@ -960,7 +854,6 @@ export const getBrandingScript = () => String.raw`
       }
     });
 
-    // Collect text-based logos
     const textLogos = findTextBasedLogos();
     textLogos.forEach(textLogo => {
       const rect = textLogo.rect;
@@ -995,7 +888,6 @@ export const getBrandingScript = () => String.raw`
       });
     });
 
-    // Remove duplicates (same src)
     const seen = new Set();
     const uniqueCandidates = logoCandidates.filter(candidate => {
       if (seen.has(candidate.src)) return false;
@@ -1003,11 +895,8 @@ export const getBrandingScript = () => String.raw`
       return true;
     });
 
-    // For backward compatibility, still pick one logo using the old logic
-    // Try visible candidates first, but fall back to any candidate if none visible
     let candidatesToPick = uniqueCandidates.filter(c => c.isVisible);
     if (candidatesToPick.length === 0 && uniqueCandidates.length > 0) {
-      // If no visible candidates, use all candidates (maybe hidden for dark/light mode)
       candidatesToPick = uniqueCandidates;
     }
     
@@ -1015,19 +904,15 @@ export const getBrandingScript = () => String.raw`
       const best = candidatesToPick.reduce((best, candidate) => {
         if (!best) return candidate;
         
-        // Prioritize candidates in header
         if (candidate.indicators.inHeader && !best.indicators.inHeader) return candidate;
         if (!candidate.indicators.inHeader && best.indicators.inHeader) return best;
         
-        // Strongly prioritize logos that link to homepage (/) over navigation icons (#)
         if (candidate.indicators.hrefMatch && !best.indicators.hrefMatch) return candidate;
         if (!candidate.indicators.hrefMatch && best.indicators.hrefMatch) return best;
         
-        // Prioritize logos with explicit logo classes
         if (candidate.indicators.classMatch && !best.indicators.classMatch) return candidate;
         if (!candidate.indicators.classMatch && best.indicators.classMatch) return best;
         
-        // Filter out very small icons (< 25px on either dimension) - likely nav icons
         const candidateArea = candidate.position.width * candidate.position.height;
         const bestArea = best.position.width * best.position.height;
         const minLogoSize = 25;
@@ -1037,7 +922,6 @@ export const getBrandingScript = () => String.raw`
         if (candidateTooSmall && !bestTooSmall) return best;
         if (!candidateTooSmall && bestTooSmall) return candidate;
         
-        // Finally, pick the one highest on the page (smallest top value)
         return candidate.position.top < best.position.top ? candidate : best;
       }, null);
 
@@ -1111,7 +995,6 @@ export const getBrandingScript = () => String.raw`
     const body = document.body;
     const html = document.documentElement;
 
-    // Check for explicit dark mode indicators
     const hasDarkIndicator =
       html.classList.contains("dark") ||
       body.classList.contains("dark") ||
@@ -1121,7 +1004,6 @@ export const getBrandingScript = () => String.raw`
       body.getAttribute("data-theme") === "dark" ||
       html.getAttribute("data-bs-theme") === "dark";
 
-    // Check for explicit light mode indicators
     const hasLightIndicator =
       html.classList.contains("light") ||
       body.classList.contains("light") ||
@@ -1131,17 +1013,14 @@ export const getBrandingScript = () => String.raw`
       body.getAttribute("data-theme") === "light" ||
       html.getAttribute("data-bs-theme") === "light";
 
-    // Check prefers-color-scheme media query
     let prefersDark = false;
     try {
       prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     } catch (e) {}
 
-    // If explicit indicators exist, use them (explicit overrides media query)
     if (hasDarkIndicator) return "dark";
     if (hasLightIndicator) return "light";
 
-    // Analyze background colors from body/html and walk up the DOM if transparent
     const getEffectiveBackground = (el) => {
       let current = el;
       let depth = 0;
@@ -1154,7 +1033,6 @@ export const getBrandingScript = () => String.raw`
           const b = parseInt(match[3], 10);
           const alpha = match[4] ? parseFloat(match[4]) : 1;
           
-          // Only consider if not fully transparent
           if (alpha > 0.1) {
             return { r, g, b, alpha };
           }
@@ -1173,37 +1051,29 @@ export const getBrandingScript = () => String.raw`
       const { r, g, b } = effectiveBg;
       const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
       
-      // Use luminance threshold: < 0.4 = dark, > 0.6 = light, 0.4-0.6 = use media query
       if (luminance < 0.4) return "dark";
       if (luminance > 0.6) return "light";
       
-      // Ambiguous luminance: fall back to prefers-color-scheme
       return prefersDark ? "dark" : "light";
     }
 
-    // No background color found: use prefers-color-scheme, default to light
     return prefersDark ? "dark" : "light";
   };
 
   const extractBrandName = () => {
-    // Try multiple sources for brand name
     const ogSiteName = document.querySelector('meta[property="og:site_name"]')?.getAttribute("content");
     const title = document.title;
     const h1 = document.querySelector("h1")?.textContent?.trim();
     
-    // Extract domain name as fallback
     let domainName = "";
     try {
       const hostname = window.location.hostname;
       domainName = hostname.replace(/^www\./, "").split(".")[0];
-      // Capitalize first letter
       domainName = domainName.charAt(0).toUpperCase() + domainName.slice(1);
     } catch (e) {}
 
-    // Try to extract brand from title (e.g., "Firecrawl - Documentation" -> "Firecrawl")
     let titleBrand = "";
     if (title) {
-      // Remove common suffixes
       titleBrand = title
         .replace(/\s*[-|–|—]\s*.*$/, "") // Remove after dash
         .replace(/\s*:\s*.*$/, "") // Remove after colon
@@ -1214,36 +1084,30 @@ export const getBrandingScript = () => String.raw`
     return ogSiteName || titleBrand || h1 || domainName || "";
   };
 
-  // Normalize color to a consistent format for deduplication
   const normalizeColor = (color) => {
     if (!color || typeof color !== "string") return null;
     const normalized = color.toLowerCase().trim();
     
-    // Handle transparent colors
     if (normalized === "transparent" || normalized === "rgba(0, 0, 0, 0)") {
       return null;
     }
     
-    // Normalize white variants
     if (normalized === "#ffffff" || normalized === "#fff" || 
         normalized === "white" || normalized === "rgb(255, 255, 255)" || 
         /^rgba\(255,\s*255,\s*255(,\s*1(\.0)?)?\)$/.test(normalized)) {
       return "rgb(255, 255, 255)";
     }
     
-    // Normalize black variants
     if (normalized === "#000000" || normalized === "#000" || 
         normalized === "black" || normalized === "rgb(0, 0, 0)" ||
         /^rgba\(0,\s*0,\s*0(,\s*1(\.0)?)?\)$/.test(normalized)) {
       return "rgb(0, 0, 0)";
     }
     
-    // Normalize hex colors to lowercase
     if (normalized.startsWith("#")) {
       return normalized;
     }
     
-    // Normalize rgb/rgba - remove spaces for consistency
     if (normalized.startsWith("rgb")) {
       return normalized.replace(/\s+/g, "");
     }
@@ -1251,44 +1115,32 @@ export const getBrandingScript = () => String.raw`
     return normalized;
   };
 
-  // Helper to check if a color is valid (not transparent)
   const isValidBackgroundColor = (color) => {
     if (!color || typeof color !== "string") return false;
     const normalized = color.toLowerCase().trim();
-    // Explicitly transparent
     if (normalized === "transparent" || normalized === "rgba(0, 0, 0, 0)") {
       return false;
     }
-    // Check for rgba with alpha exactly 0 (not just starting with 0)
     const rgbaMatch = normalized.match(/rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*([\d.]+)\s*\)/);
     if (rgbaMatch) {
       const alpha = parseFloat(rgbaMatch[1]);
-      // Only filter if alpha is exactly 0 (or very close to 0 due to floating point)
       if (alpha < 0.01) {
         return false;
       }
-      // rgba(0, 0, 0, 0.8) and similar opaque black backgrounds are valid
       return true;
     }
-    // rgb(0, 0, 0) is a valid black background, not transparent
-    // Check for color() format with alpha 0
     const colorMatch = normalized.match(/color\([^)]+\)/);
     if (colorMatch) {
-      // If it's a color() format, include it (let the processor handle it)
-      // Modern formats like color(display-p3 0 0 0 / 0.039216) are valid
       return true;
     }
-    // Any other non-empty string is valid
     return normalized.length > 0;
   };
 
   const getBackgroundCandidates = () => {
     const candidates = [];
     
-    // First, sample actual visible background colors from elements to find the most common
     const colorFrequency = new Map();
     const allSampleElements = document.querySelectorAll("body, html, main, article, [role='main'], div, section");
-    // Slice BEFORE forEach to avoid iterating all elements
     const sampleElements = Array.from(allSampleElements).slice(0, CONSTANTS.MAX_BACKGROUND_SAMPLES);
     
     sampleElements.forEach(el => {
@@ -1297,7 +1149,6 @@ export const getBrandingScript = () => String.raw`
         if (isValidBackgroundColor(bg)) {
           const rect = el.getBoundingClientRect();
           const area = rect.width * rect.height;
-          // Only count if element has significant area
           if (area > CONSTANTS.MIN_SIGNIFICANT_AREA) {
             const normalized = normalizeColor(bg);
             if (normalized) {
@@ -1306,12 +1157,9 @@ export const getBrandingScript = () => String.raw`
             }
           }
         }
-      } catch (e) {
-        // Skip errors
-      }
+      } catch (e) {}
     });
     
-    // Find the most common background color by total area
     let mostCommonColor = null;
     let maxArea = 0;
     for (const [color, area] of colorFrequency.entries()) {
@@ -1321,11 +1169,9 @@ export const getBrandingScript = () => String.raw`
       }
     }
     
-    // Sample body and html background colors directly
     const bodyBg = getComputedStyleCached(document.body).backgroundColor;
     const htmlBg = getComputedStyleCached(document.documentElement).backgroundColor;
     
-    // Prefer body/html if they're valid, but give extra boost if they match the most common color
     if (isValidBackgroundColor(bodyBg)) {
       const normalized = normalizeColor(bodyBg);
       const priority = normalized === mostCommonColor ? 15 : 10;
@@ -1350,20 +1196,17 @@ export const getBrandingScript = () => String.raw`
       }
     }
     
-    // Add the most common color as a candidate if it's different from body/html
     const normalizedBodyBg = normalizeColor(bodyBg);
     const normalizedHtmlBg = normalizeColor(htmlBg);
     if (mostCommonColor && mostCommonColor !== normalizedBodyBg && mostCommonColor !== normalizedHtmlBg) {
       candidates.push({
         color: mostCommonColor,
         source: "most-common-visible",
-        priority: 12, // High priority but below body/html
+        priority: 12,
         area: maxArea,
       });
     }
     
-    // Try to get CSS custom properties (common in Tailwind/modern frameworks)
-    // More efficient: read directly from root element
     try {
       const rootStyle = getComputedStyleCached(document.documentElement);
       
@@ -1381,7 +1224,6 @@ export const getBrandingScript = () => String.raw`
       
       cssVars.forEach(varName => {
         try {
-          // Get the raw CSS variable value
           const rawValue = rootStyle.getPropertyValue(varName).trim();
           
           if (rawValue && isValidBackgroundColor(rawValue)) {
@@ -1391,15 +1233,10 @@ export const getBrandingScript = () => String.raw`
               priority: 8,
             });
           }
-        } catch (e) {
-          // Skip this variable if there's an error
-        }
+        } catch (e) {}
       });
-    } catch (e) {
-      // If CSS variable reading fails, continue
-    }
+    } catch (e) {}
     
-    // Sample from main containers (header, main, article, etc.)
     try {
       const allContainers = document.querySelectorAll("main, article, [role='main'], header, .main, .container");
       const mainContainers = Array.from(allContainers).slice(0, 5);
@@ -1409,7 +1246,6 @@ export const getBrandingScript = () => String.raw`
           if (isValidBackgroundColor(bg)) {
             const rect = el.getBoundingClientRect();
             const area = rect.width * rect.height;
-            // Only include if it's a significant area
             if (area > CONSTANTS.MIN_LARGE_CONTAINER_AREA) {
               const normalized = normalizeColor(bg);
               if (normalized) {
@@ -1422,15 +1258,10 @@ export const getBrandingScript = () => String.raw`
               }
             }
           }
-        } catch (e) {
-          // Skip this element if there's an error
-        }
+        } catch (e) {}
       });
-    } catch (e) {
-      // If container selection fails, continue
-    }
+    } catch (e) {}
     
-    // Remove duplicates (same normalized color value)
     const seen = new Set();
     const unique = candidates.filter(c => {
       if (!c || !c.color) return false;
@@ -1440,7 +1271,6 @@ export const getBrandingScript = () => String.raw`
       return true;
     });
     
-    // Sort by priority (highest first)
     unique.sort((a, b) => (b.priority || 0) - (a.priority || 0));
     
     return unique;
@@ -1456,7 +1286,6 @@ export const getBrandingScript = () => String.raw`
   const brandName = extractBrandName();
   const backgroundCandidates = getBackgroundCandidates();
   
-  // Keep pageBackground for backward compatibility (first candidate)
   const pageBackground = backgroundCandidates.length > 0 ? backgroundCandidates[0].color : null;
 
   return {
@@ -1471,7 +1300,7 @@ export const getBrandingScript = () => String.raw`
       colorScheme,
       pageBackground,
       backgroundCandidates,
-      errors: errors.length > 0 ? errors : undefined, // Only include if there are errors
+      errors: errors.length > 0 ? errors : undefined,
     },
   };
 })();`;
