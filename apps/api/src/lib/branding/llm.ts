@@ -20,7 +20,7 @@ export async function enhanceBrandingWithLLM(
         {
           role: "system",
           content:
-            "You are a brand design expert. Look at the screenshot and identify the most prominent primary brand logo - usually the main logo at the top of the page in the header/navbar. You MUST select one logo and provide clear reasoning.",
+            "You are a brand design expert analyzing websites to extract accurate branding information.",
         },
         {
           role: "user",
