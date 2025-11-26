@@ -1,5 +1,43 @@
 export const getBrandingScript = () => String.raw`
 (function __extractBrandDesign() {
+  // Collect errors to return with results (since we can't access console in CDP)
+  const errors = [];
+  const recordError = (context, error) => {
+    errors.push({
+      context: context,
+      message: error && error.message ? error.message : String(error),
+      timestamp: Date.now(),
+    });
+  };
+
+  // Constants for better maintainability
+  const CONSTANTS = {
+    BUTTON_MIN_WIDTH: 50,
+    BUTTON_MIN_HEIGHT: 25,
+    BUTTON_MIN_PADDING_VERTICAL: 3,
+    BUTTON_MIN_PADDING_HORIZONTAL: 6,
+    LOGO_MAX_TEXT_LENGTH: 50,
+    TEXT_LOGO_THRESHOLD: 20,
+    STYLED_TEXT_LOGO_THRESHOLD: 30,
+    MAX_PARENT_TRAVERSAL: 5,
+    MAX_BACKGROUND_SAMPLES: 100,
+    MIN_SIGNIFICANT_AREA: 1000,
+    MIN_LARGE_CONTAINER_AREA: 10000,
+    CANVAS_SCALE: 2,
+    DUPLICATE_POSITION_THRESHOLD: 1,
+  };
+
+  // Cache for computed styles to avoid recalculation
+  const styleCache = new WeakMap();
+  const getComputedStyleCached = (el) => {
+    if (styleCache.has(el)) {
+      return styleCache.get(el);
+    }
+    const style = getComputedStyle(el);
+    styleCache.set(el, style);
+    return style;
+  };
+
   const toPx = v => {
     if (!v || v === "auto") return null;
     if (v.endsWith("px")) return parseFloat(v);
@@ -100,6 +138,8 @@ export const getBrandingScript = () => String.raw`
       try {
         rules = sheet.cssRules;
       } catch (e) {
+        // Cross-origin stylesheets can't be accessed
+        recordError('collectCSSData - CORS stylesheet', e);
         continue;
       }
       if (!rules) continue;
@@ -157,6 +197,39 @@ export const getBrandingScript = () => String.raw`
     return data;
   };
 
+  // Shared button detection logic - used by both sampleElements and getStyleSnapshot
+  const checkButtonLikeElement = (el, cs, rect, classNames) => {
+    // Check for common button class patterns (Tailwind, Bootstrap, etc.)
+    const hasButtonClasses = 
+      /rounded(-md|-lg|-xl|-full)?/.test(classNames) || // rounded corners
+      /px-\d+/.test(classNames) || // horizontal padding (px-2, px-4, etc.)
+      /py-\d+/.test(classNames) || // vertical padding (py-2, py-4, etc.)
+      /p-\d+/.test(classNames) || // padding (p-2, p-4, etc.)
+      (/border/.test(classNames) && /rounded/.test(classNames)) || // border + rounded
+      (/inline-flex/.test(classNames) && /items-center/.test(classNames) && /justify-center/.test(classNames)); // flexbox button pattern
+    
+    if (hasButtonClasses && rect.width > CONSTANTS.BUTTON_MIN_WIDTH && rect.height > CONSTANTS.BUTTON_MIN_HEIGHT) {
+      return true;
+    }
+    
+    // Check computed styles for button-like appearance
+    const paddingTop = parseFloat(cs.paddingTop) || 0;
+    const paddingBottom = parseFloat(cs.paddingBottom) || 0;
+    const paddingLeft = parseFloat(cs.paddingLeft) || 0;
+    const paddingRight = parseFloat(cs.paddingRight) || 0;
+    const hasPadding = paddingTop > CONSTANTS.BUTTON_MIN_PADDING_VERTICAL || 
+                      paddingBottom > CONSTANTS.BUTTON_MIN_PADDING_VERTICAL || 
+                      paddingLeft > CONSTANTS.BUTTON_MIN_PADDING_HORIZONTAL || 
+                      paddingRight > CONSTANTS.BUTTON_MIN_PADDING_HORIZONTAL;
+    const hasMinSize = rect.width > CONSTANTS.BUTTON_MIN_WIDTH && rect.height > CONSTANTS.BUTTON_MIN_HEIGHT;
+    const hasRounded = parseFloat(cs.borderRadius) > 0;
+    const hasBorder = parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0 ||
+                     parseFloat(cs.borderLeftWidth) > 0 || parseFloat(cs.borderRightWidth) > 0;
+    
+    // Button-like if has padding + (rounded or border) and reasonable size
+    return hasPadding && hasMinSize && (hasRounded || hasBorder);
+  };
+
   // Helper to check if an element looks like a button (has button-like styling)
   const looksLikeButton = (el) => {
     if (!el || typeof el.matches !== 'function') return false;
@@ -169,49 +242,14 @@ export const getBrandingScript = () => String.raw`
     // For links, check if they have button-like styling
     if (el.tagName.toLowerCase() === 'a') {
       try {
-        const classes = (el.className || '').toLowerCase();
-        const classStr = classes;
-        
-        // Check for common button class patterns (Tailwind, Bootstrap, etc.)
-        const hasButtonClasses = 
-          /rounded(-md|-lg|-xl|-full)?/.test(classStr) || // rounded corners
-          /px-\d+/.test(classStr) || // horizontal padding (px-2, px-4, etc.)
-          /py-\d+/.test(classStr) || // vertical padding (py-2, py-4, etc.)
-          /p-\d+/.test(classStr) || // padding (p-2, p-4, etc.)
-          (/border/.test(classStr) && /rounded/.test(classStr)) || // border + rounded
-          (/inline-flex/.test(classStr) && /items-center/.test(classStr) && /justify-center/.test(classStr)); // flexbox button pattern
-        
-        if (hasButtonClasses) {
-          const cs = getComputedStyle(el);
-          const rect = el.getBoundingClientRect();
-          
-          // Verify it has reasonable button dimensions
-          if (rect.width > 50 && rect.height > 25) {
-            return true;
-          }
-        }
-        
-        // Also check computed styles for button-like appearance
-        const cs = getComputedStyle(el);
+        const classNames = (el.className || '').toLowerCase();
+        const cs = getComputedStyleCached(el);
         const rect = el.getBoundingClientRect();
         
-        // Check for button-like padding and dimensions
-        const paddingTop = parseFloat(cs.paddingTop) || 0;
-        const paddingBottom = parseFloat(cs.paddingBottom) || 0;
-        const paddingLeft = parseFloat(cs.paddingLeft) || 0;
-        const paddingRight = parseFloat(cs.paddingRight) || 0;
-        const hasPadding = paddingTop > 3 || paddingBottom > 3 || paddingLeft > 6 || paddingRight > 6;
-        const hasMinSize = rect.width > 50 && rect.height > 25;
-        const hasRounded = parseFloat(cs.borderRadius) > 0;
-        const hasBorder = parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0 ||
-                         parseFloat(cs.borderLeftWidth) > 0 || parseFloat(cs.borderRightWidth) > 0;
-        
-        // Button-like if has padding + (rounded or border) and reasonable size
-        if (hasPadding && hasMinSize && (hasRounded || hasBorder)) {
-          return true;
-        }
+        return checkButtonLikeElement(el, cs, rect, classNames);
       } catch (e) {
-        // If we can't check styles, fall back to class matching
+        recordError('looksLikeButton', e);
+        return false;
       }
     }
     
@@ -219,10 +257,17 @@ export const getBrandingScript = () => String.raw`
   };
 
   const sampleElements = () => {
-    const picks = [];
+    // Use a Set to deduplicate elements as we collect them
+    const picksSet = new Set();
+    
     const pushQ = (q, limit = 10) => {
-      for (const el of Array.from(document.querySelectorAll(q)).slice(0, limit))
-        picks.push(el);
+      const elements = document.querySelectorAll(q);
+      let count = 0;
+      for (const el of elements) {
+        if (count >= limit) break;
+        picksSet.add(el);
+        count++;
+      }
     };
 
     pushQ('header img, .site-logo img, img[alt*=logo i], img[src*="logo"]', 5);
@@ -233,22 +278,26 @@ export const getBrandingScript = () => String.raw`
       100,
     );
     
-    // Also check all links for button-like styling
-    const allLinks = Array.from(document.querySelectorAll('a'));
-    for (const link of allLinks.slice(0, 100)) {
-      if (looksLikeButton(link)) {
-        picks.push(link);
+    // Also check links for button-like styling (but only if not already captured)
+    // Limit to first 100 links for performance
+    const allLinks = document.querySelectorAll('a');
+    let linkCount = 0;
+    for (const link of allLinks) {
+      if (linkCount >= 100) break;
+      if (!picksSet.has(link) && looksLikeButton(link)) {
+        picksSet.add(link);
       }
+      linkCount++;
     }
     
     pushQ('input, select, textarea, [class*="form-control"]', 25);
     pushQ("h1, h2, h3, p, a", 50);
 
-    return Array.from(new Set(picks.filter(Boolean)));
+    return Array.from(picksSet).filter(Boolean);
   };
 
   const getStyleSnapshot = el => {
-    const cs = getComputedStyle(el);
+    const cs = getComputedStyleCached(el);
     const rect = el.getBoundingClientRect();
 
     const fontStack =
@@ -267,7 +316,7 @@ export const getBrandingScript = () => String.raw`
       if (!classNames && el.className) {
         if (typeof el.className === "string") {
           classNames = el.className.toLowerCase();
-        } else if (el.className.baseVal) {
+        } else if (el.className?.baseVal) {
           classNames = el.className.baseVal.toLowerCase();
         }
       }
@@ -301,8 +350,8 @@ export const getBrandingScript = () => String.raw`
       // Walk up the DOM to find a non-transparent background
       let parent = el.parentElement;
       let depth = 0;
-      while (parent && depth < 5) {
-        const parentBg = getComputedStyle(parent).getPropertyValue("background-color");
+      while (parent && depth < CONSTANTS.MAX_PARENT_TRAVERSAL) {
+        const parentBg = getComputedStyleCached(parent).getPropertyValue("background-color");
         if (parentBg && parentBg !== "transparent" && parentBg !== "rgba(0, 0, 0, 0)") {
           const parentAlphaMatch = parentBg.match(/rgba?\([^,]*,[^,]*,[^,]*,\s*([\d.]+)\)/);
           const parentAlpha = parentAlphaMatch ? parseFloat(parentAlphaMatch[1]) : 1;
@@ -316,43 +365,14 @@ export const getBrandingScript = () => String.raw`
       }
     }
 
-    // Check if element is a button - use same logic as sampleElements
+    // Check if element is a button - use shared detection logic
     let isButton = false;
     if (el.matches('button,input[type="submit"],input[type="button"],[role=button],[data-primary-button],[data-secondary-button],[data-cta],a.button,a.btn,[class*="btn"],[class*="button"],a[class*="bg-brand"],a[class*="bg-primary"],a[class*="bg-accent"]')) {
       isButton = true;
     } else if (el.tagName.toLowerCase() === 'a') {
       // Check if link looks like a button (has button-like styling)
       try {
-        const classes = classNames;
-        
-        // Check for common button class patterns (Tailwind, Bootstrap, etc.)
-        const hasButtonClasses = 
-          /rounded(-md|-lg|-xl|-full)?/.test(classes) || // rounded corners
-          /px-\d+/.test(classes) || // horizontal padding (px-2, px-4, etc.)
-          /py-\d+/.test(classes) || // vertical padding (py-2, py-4, etc.)
-          /p-\d+/.test(classes) || // padding (p-2, p-4, etc.)
-          (/border/.test(classes) && /rounded/.test(classes)) || // border + rounded
-          (/inline-flex/.test(classes) && /items-center/.test(classes) && /justify-center/.test(classes)); // flexbox button pattern
-        
-        if (hasButtonClasses && rect.width > 50 && rect.height > 25) {
-          isButton = true;
-        } else {
-          // Also check computed styles for button-like appearance
-          const paddingTop = parseFloat(cs.paddingTop) || 0;
-          const paddingBottom = parseFloat(cs.paddingBottom) || 0;
-          const paddingLeft = parseFloat(cs.paddingLeft) || 0;
-          const paddingRight = parseFloat(cs.paddingRight) || 0;
-          const hasPadding = paddingTop > 3 || paddingBottom > 3 || paddingLeft > 6 || paddingRight > 6;
-          const hasMinSize = rect.width > 50 && rect.height > 25;
-          const hasRounded = parseFloat(cs.borderRadius) > 0;
-          const hasBorder = parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0 ||
-                           parseFloat(cs.borderLeftWidth) > 0 || parseFloat(cs.borderRightWidth) > 0;
-          
-          // Button-like if has padding + (rounded or border) and reasonable size
-          if (hasPadding && hasMinSize && (hasRounded || hasBorder)) {
-            isButton = true;
-          }
-        }
+        isButton = checkButtonLikeElement(el, cs, rect, classNames);
       } catch (e) {
         // If we can't check styles, not a button
       }
@@ -512,7 +532,7 @@ export const getBrandingScript = () => String.raw`
   const textElementToImage = (el) => {
     try {
       const rect = el.getBoundingClientRect();
-      const cs = getComputedStyle(el);
+      const cs = getComputedStyleCached(el);
       
       // Skip if element is too small or invisible
       if (rect.width < 20 || rect.height < 10 || rect.width === 0 || rect.height === 0) {
@@ -608,6 +628,7 @@ export const getBrandingScript = () => String.raw`
       // Convert to data URL
       return canvas.toDataURL('image/png');
     } catch (e) {
+      recordError('textElementToImage', e);
       return null;
     }
   };
@@ -649,11 +670,11 @@ export const getBrandingScript = () => String.raw`
     Array.from(allElements).forEach(el => {
       try {
         const rect = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
+        const cs = getComputedStyleCached(el);
         const text = el.textContent?.trim() || '';
         
         // Skip if no text or too long (logos are usually short)
-        if (!text || text.length > 50) return;
+        if (!text || text.length > CONSTANTS.LOGO_MAX_TEXT_LENGTH) return;
         
         // Skip if element is invisible or too small
         if (rect.width < 20 || rect.height < 10 || 
@@ -676,7 +697,7 @@ export const getBrandingScript = () => String.raw`
         
         // Check if it links to homepage (strong logo indicator)
         const href = el.tagName.toLowerCase() === 'a' ? (el.getAttribute('href') || '') : '';
-        const hrefMatch = href === '/' || href === '/home' || href === '/index' || href === '' || href === '#';
+        const hrefMatch = href === '/' || href === '/home' || href === '/index' || href === '';
         
         // Check for logo-related classes/attributes
         const classNames = (el.className || '').toLowerCase();
@@ -699,10 +720,10 @@ export const getBrandingScript = () => String.raw`
         const isEarlyInHeader = inHeader && (isFirstInContainer || isLastInContainer);
         
         const looksLikeTextLogo = 
-          (inHeader && hrefMatch && (hasBackground || hasBorder || hasBorderRadius || hasPadding) && text.length <= 50 && !hasCTAIndicator) ||
+          (inHeader && hrefMatch && (hasBackground || hasBorder || hasBorderRadius || hasPadding) && text.length <= CONSTANTS.LOGO_MAX_TEXT_LENGTH && !hasCTAIndicator) ||
           (hasLogoClass && inHeader && !hasCTAIndicator) ||
-          (isEarlyInHeader && (hasBackground || hasBorder || hasBorderRadius) && text.length <= 30 && !hasCTAIndicator) ||
-          (inHeader && (hasBackground || (hasBorder && hasBorderRadius)) && text.length <= 20 && !hasCTAIndicator);
+          (isEarlyInHeader && (hasBackground || hasBorder || hasBorderRadius) && text.length <= CONSTANTS.STYLED_TEXT_LOGO_THRESHOLD && !hasCTAIndicator) ||
+          (inHeader && (hasBackground || (hasBorder && hasBorderRadius)) && text.length <= CONSTANTS.TEXT_LOGO_THRESHOLD && !hasCTAIndicator);
         
         if (looksLikeTextLogo) {
           // Convert to image
@@ -748,7 +769,7 @@ export const getBrandingScript = () => String.raw`
     // Helper to collect logo candidate metadata
     const collectLogoCandidate = (el, source) => {
       const rect = el.getBoundingClientRect();
-      const style = getComputedStyle(el);
+      const style = getComputedStyleCached(el);
       const isVisible = (
         rect.width > 0 &&
         rect.height > 0 &&
@@ -803,12 +824,13 @@ export const getBrandingScript = () => String.raw`
           const serializer = new XMLSerializer();
           src = "data:image/svg+xml;utf8," + encodeURIComponent(serializer.serializeToString(resolvedSvg));
         } catch (e) {
+          recordError('resolveSvgStyles', e);
           // If serialization fails, try to serialize the original SVG
           try {
             const serializer = new XMLSerializer();
             src = "data:image/svg+xml;utf8," + encodeURIComponent(serializer.serializeToString(el));
           } catch (e2) {
-            // If that also fails, skip this candidate
+            recordError('XMLSerializer fallback', e2);
             return;
           }
         }
@@ -819,12 +841,12 @@ export const getBrandingScript = () => String.raw`
       // Check if href indicates homepage/root (common logo pattern)
       if (href) {
         const normalizedHref = href.toLowerCase().trim();
-        // Logos typically link to homepage: "/", "/home", "/index", or just "#" or empty
+        // Logos typically link to homepage: "/", "/home", "/index", or empty
+        // Note: "#" is NOT included as it's commonly used for navigation dropdowns
         hrefMatch = normalizedHref === '/' || 
                    normalizedHref === '/home' || 
                    normalizedHref === '/index' || 
-                   normalizedHref === '' ||
-                   normalizedHref === '#';
+                   normalizedHref === '';
       }
 
       if (src) {
@@ -942,7 +964,7 @@ export const getBrandingScript = () => String.raw`
     const textLogos = findTextBasedLogos();
     textLogos.forEach(textLogo => {
       const rect = textLogo.rect;
-      const style = getComputedStyle(textLogo.element);
+      const style = getComputedStyleCached(textLogo.element);
       const isVisible = (
         rect.width > 0 &&
         rect.height > 0 &&
@@ -952,7 +974,7 @@ export const getBrandingScript = () => String.raw`
       );
       
       const href = textLogo.href || '';
-      const hrefMatch = href === '/' || href === '/home' || href === '/index' || href === '' || href === '#';
+      const hrefMatch = href === '/' || href === '/home' || href === '/index' || href === '';
       
       logoCandidates.push({
         src: textLogo.imageDataUrl,
@@ -992,8 +1014,30 @@ export const getBrandingScript = () => String.raw`
     if (candidatesToPick.length > 0) {
       const best = candidatesToPick.reduce((best, candidate) => {
         if (!best) return candidate;
+        
+        // Prioritize candidates in header
         if (candidate.indicators.inHeader && !best.indicators.inHeader) return candidate;
         if (!candidate.indicators.inHeader && best.indicators.inHeader) return best;
+        
+        // Strongly prioritize logos that link to homepage (/) over navigation icons (#)
+        if (candidate.indicators.hrefMatch && !best.indicators.hrefMatch) return candidate;
+        if (!candidate.indicators.hrefMatch && best.indicators.hrefMatch) return best;
+        
+        // Prioritize logos with explicit logo classes
+        if (candidate.indicators.classMatch && !best.indicators.classMatch) return candidate;
+        if (!candidate.indicators.classMatch && best.indicators.classMatch) return best;
+        
+        // Filter out very small icons (< 25px on either dimension) - likely nav icons
+        const candidateArea = candidate.position.width * candidate.position.height;
+        const bestArea = best.position.width * best.position.height;
+        const minLogoSize = 25;
+        const candidateTooSmall = candidate.position.width < minLogoSize || candidate.position.height < minLogoSize;
+        const bestTooSmall = best.position.width < minLogoSize || best.position.height < minLogoSize;
+        
+        if (candidateTooSmall && !bestTooSmall) return best;
+        if (!candidateTooSmall && bestTooSmall) return candidate;
+        
+        // Finally, pick the one highest on the page (smallest top value)
         return candidate.position.top < best.position.top ? candidate : best;
       }, null);
 
@@ -1012,7 +1056,7 @@ export const getBrandingScript = () => String.raw`
   const getTypography = () => {
     const pickFontStack = el => {
       return (
-        getComputedStyle(el)
+        getComputedStyleCached(el)
           .fontFamily?.split(",")
           .map(f => f.replace(/["']/g, "").trim())
           .filter(Boolean) || []
@@ -1031,9 +1075,9 @@ export const getBrandingScript = () => String.raw`
         paragraph: pickFontStack(p),
       },
       sizes: {
-        h1: getComputedStyle(h1).fontSize || "32px",
-        h2: getComputedStyle(h2).fontSize || "24px",
-        body: getComputedStyle(p).fontSize || "16px",
+        h1: getComputedStyleCached(h1).fontSize || "32px",
+        h2: getComputedStyleCached(h2).fontSize || "24px",
+        body: getComputedStyleCached(p).fontSize || "16px",
       },
     };
   };
@@ -1102,7 +1146,7 @@ export const getBrandingScript = () => String.raw`
       let current = el;
       let depth = 0;
       while (current && depth < 10) {
-        const bg = getComputedStyle(current).backgroundColor;
+        const bg = getComputedStyleCached(current).backgroundColor;
         const match = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
         if (match) {
           const r = parseInt(match[1], 10);
@@ -1170,6 +1214,43 @@ export const getBrandingScript = () => String.raw`
     return ogSiteName || titleBrand || h1 || domainName || "";
   };
 
+  // Normalize color to a consistent format for deduplication
+  const normalizeColor = (color) => {
+    if (!color || typeof color !== "string") return null;
+    const normalized = color.toLowerCase().trim();
+    
+    // Handle transparent colors
+    if (normalized === "transparent" || normalized === "rgba(0, 0, 0, 0)") {
+      return null;
+    }
+    
+    // Normalize white variants
+    if (normalized === "#ffffff" || normalized === "#fff" || 
+        normalized === "white" || normalized === "rgb(255, 255, 255)" || 
+        /^rgba\(255,\s*255,\s*255(,\s*1(\.0)?)?\)$/.test(normalized)) {
+      return "rgb(255, 255, 255)";
+    }
+    
+    // Normalize black variants
+    if (normalized === "#000000" || normalized === "#000" || 
+        normalized === "black" || normalized === "rgb(0, 0, 0)" ||
+        /^rgba\(0,\s*0,\s*0(,\s*1(\.0)?)?\)$/.test(normalized)) {
+      return "rgb(0, 0, 0)";
+    }
+    
+    // Normalize hex colors to lowercase
+    if (normalized.startsWith("#")) {
+      return normalized;
+    }
+    
+    // Normalize rgb/rgba - remove spaces for consistency
+    if (normalized.startsWith("rgb")) {
+      return normalized.replace(/\s+/g, "");
+    }
+    
+    return normalized;
+  };
+
   // Helper to check if a color is valid (not transparent)
   const isValidBackgroundColor = (color) => {
     if (!color || typeof color !== "string") return false;
@@ -1206,25 +1287,27 @@ export const getBrandingScript = () => String.raw`
     
     // First, sample actual visible background colors from elements to find the most common
     const colorFrequency = new Map();
-    const sampleElements = document.querySelectorAll("body, html, main, article, [role='main'], div, section");
+    const allSampleElements = document.querySelectorAll("body, html, main, article, [role='main'], div, section");
+    // Slice BEFORE forEach to avoid iterating all elements
+    const sampleElements = Array.from(allSampleElements).slice(0, CONSTANTS.MAX_BACKGROUND_SAMPLES);
     
-    sampleElements.forEach((el, idx) => {
-      if (idx < 100) { // Limit to first 100 elements
-        try {
-          const bg = getComputedStyle(el).backgroundColor;
-          if (isValidBackgroundColor(bg)) {
-            const rect = el.getBoundingClientRect();
-            const area = rect.width * rect.height;
-            // Only count if element has significant area
-            if (area > 1000) {
-              const normalized = bg.toLowerCase().trim();
+    sampleElements.forEach(el => {
+      try {
+        const bg = getComputedStyleCached(el).backgroundColor;
+        if (isValidBackgroundColor(bg)) {
+          const rect = el.getBoundingClientRect();
+          const area = rect.width * rect.height;
+          // Only count if element has significant area
+          if (area > CONSTANTS.MIN_SIGNIFICANT_AREA) {
+            const normalized = normalizeColor(bg);
+            if (normalized) {
               const currentCount = colorFrequency.get(normalized) || 0;
               colorFrequency.set(normalized, currentCount + area);
             }
           }
-        } catch (e) {
-          // Skip errors
         }
+      } catch (e) {
+        // Skip errors
       }
     });
     
@@ -1239,32 +1322,38 @@ export const getBrandingScript = () => String.raw`
     }
     
     // Sample body and html background colors directly
-    const bodyBg = getComputedStyle(document.body).backgroundColor;
-    const htmlBg = getComputedStyle(document.documentElement).backgroundColor;
+    const bodyBg = getComputedStyleCached(document.body).backgroundColor;
+    const htmlBg = getComputedStyleCached(document.documentElement).backgroundColor;
     
     // Prefer body/html if they're valid, but give extra boost if they match the most common color
     if (isValidBackgroundColor(bodyBg)) {
-      const normalized = bodyBg.toLowerCase().trim();
+      const normalized = normalizeColor(bodyBg);
       const priority = normalized === mostCommonColor ? 15 : 10;
-      candidates.push({
-        color: bodyBg,
-        source: "body",
-        priority: priority,
-      });
+      if (normalized) {
+        candidates.push({
+          color: normalized,
+          source: "body",
+          priority: priority,
+        });
+      }
     }
     
     if (isValidBackgroundColor(htmlBg)) {
-      const normalized = htmlBg.toLowerCase().trim();
+      const normalized = normalizeColor(htmlBg);
       const priority = normalized === mostCommonColor ? 14 : 9;
-      candidates.push({
-        color: htmlBg,
-        source: "html",
-        priority: priority,
-      });
+      if (normalized) {
+        candidates.push({
+          color: normalized,
+          source: "html",
+          priority: priority,
+        });
+      }
     }
     
     // Add the most common color as a candidate if it's different from body/html
-    if (mostCommonColor && mostCommonColor !== bodyBg?.toLowerCase().trim() && mostCommonColor !== htmlBg?.toLowerCase().trim()) {
+    const normalizedBodyBg = normalizeColor(bodyBg);
+    const normalizedHtmlBg = normalizeColor(htmlBg);
+    if (mostCommonColor && mostCommonColor !== normalizedBodyBg && mostCommonColor !== normalizedHtmlBg) {
       candidates.push({
         color: mostCommonColor,
         source: "most-common-visible",
@@ -1274,13 +1363,9 @@ export const getBrandingScript = () => String.raw`
     }
     
     // Try to get CSS custom properties (common in Tailwind/modern frameworks)
-    // Create a temporary element to resolve CSS variables
-    let tempEl = null;
+    // More efficient: read directly from root element
     try {
-      tempEl = document.createElement("div");
-      tempEl.style.setProperty("background-color", "var(--background)");
-      document.body.appendChild(tempEl);
-      const tempStyle = getComputedStyle(tempEl);
+      const rootStyle = getComputedStyleCached(document.documentElement);
       
       const cssVars = [
         "--background",
@@ -1296,13 +1381,12 @@ export const getBrandingScript = () => String.raw`
       
       cssVars.forEach(varName => {
         try {
-          // Try to resolve the CSS variable
-          tempEl.style.setProperty("background-color", "var(" + varName + ")");
-          const resolved = tempStyle.backgroundColor;
+          // Get the raw CSS variable value
+          const rawValue = rootStyle.getPropertyValue(varName).trim();
           
-          if (isValidBackgroundColor(resolved)) {
+          if (rawValue && isValidBackgroundColor(rawValue)) {
             candidates.push({
-              color: resolved,
+              color: rawValue,
               source: "css-var:" + varName,
               priority: 8,
             });
@@ -1311,85 +1395,46 @@ export const getBrandingScript = () => String.raw`
           // Skip this variable if there's an error
         }
       });
-      
-      if (tempEl && tempEl.parentElement) {
-        document.body.removeChild(tempEl);
-      }
     } catch (e) {
-      // If temp element creation fails, continue without CSS variables
-      if (tempEl && tempEl.parentElement) {
-        try {
-          document.body.removeChild(tempEl);
-        } catch (e2) {
-          // Ignore cleanup errors
-        }
-      }
+      // If CSS variable reading fails, continue
     }
     
     // Sample from main containers (header, main, article, etc.)
     try {
-      const mainContainers = document.querySelectorAll("main, article, [role='main'], header, .main, .container");
-      mainContainers.forEach((el, idx) => {
-        if (idx < 5) { // Limit to first 5
-          try {
-            const bg = getComputedStyle(el).backgroundColor;
-            if (isValidBackgroundColor(bg)) {
-              const rect = el.getBoundingClientRect();
-              const area = rect.width * rect.height;
-              // Only include if it's a significant area
-              if (area > 10000) {
+      const allContainers = document.querySelectorAll("main, article, [role='main'], header, .main, .container");
+      const mainContainers = Array.from(allContainers).slice(0, 5);
+      mainContainers.forEach(el => {
+        try {
+          const bg = getComputedStyleCached(el).backgroundColor;
+          if (isValidBackgroundColor(bg)) {
+            const rect = el.getBoundingClientRect();
+            const area = rect.width * rect.height;
+            // Only include if it's a significant area
+            if (area > CONSTANTS.MIN_LARGE_CONTAINER_AREA) {
+              const normalized = normalizeColor(bg);
+              if (normalized) {
                 candidates.push({
-                  color: bg,
+                  color: normalized,
                   source: el.tagName.toLowerCase() + "-container",
                   priority: 5,
                   area: area,
                 });
               }
             }
-          } catch (e) {
-            // Skip this element if there's an error
           }
+        } catch (e) {
+          // Skip this element if there's an error
         }
       });
     } catch (e) {
       // If container selection fails, continue
     }
     
-    // Helper to normalize white color variants
-    const normalizeWhite = (color) => {
-      if (!color) return null;
-      const normalized = color.toLowerCase().trim();
-      // Check for various white formats
-      if (normalized === "#ffffff" || normalized === "#fff" || 
-          normalized === "rgb(255, 255, 255)" || normalized === "rgba(255, 255, 255, 1)" ||
-          normalized === "rgba(255, 255, 255, 1.0)" || normalized.startsWith("rgba(255, 255, 255")) {
-        return "rgb(255, 255, 255)";
-      }
-      return normalized;
-    };
-    
-    // Normalize white variants and boost priority for white backgrounds
-    const normalizedCandidates = candidates.map(c => {
-      const normalized = normalizeWhite(c.color);
-      if (normalized === "rgb(255, 255, 255)") {
-        // Boost white backgrounds slightly
-        return {
-          ...c,
-          color: normalized,
-          priority: (c.priority || 0) + 1,
-        };
-      }
-      return {
-        ...c,
-        color: normalized || c.color,
-      };
-    });
-    
-    // Remove duplicates (same color value)
+    // Remove duplicates (same normalized color value)
     const seen = new Set();
-    const unique = normalizedCandidates.filter(c => {
+    const unique = candidates.filter(c => {
       if (!c || !c.color) return false;
-      const key = c.color.toLowerCase().trim();
+      const key = normalizeColor(c.color);
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -1426,6 +1471,7 @@ export const getBrandingScript = () => String.raw`
       colorScheme,
       pageBackground,
       backgroundCandidates,
+      errors: errors.length > 0 ? errors : undefined, // Only include if there are errors
     },
   };
 })();`;
