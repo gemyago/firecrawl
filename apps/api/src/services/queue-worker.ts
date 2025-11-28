@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { shutdownOtel } from "../otel";
 import "./sentry";
-import { setSentryServiceTag } from "./sentry";
 import * as Sentry from "@sentry/node";
 import {
   getDeepResearchQueue,
@@ -25,6 +24,7 @@ import { initializeEngineForcing } from "../scraper/WebScraper/utils/engine-forc
 import { crawlFinishedQueue, NuQJob, scrapeQueue } from "./worker/nuq";
 import { finishCrawlSuper } from "./worker/crawl-logic";
 import { getCrawl } from "../lib/crawl-redis";
+import { TransportableError } from "../lib/error";
 
 configDotenv();
 
@@ -98,11 +98,15 @@ const processDeepResearchJobInternal = async (
   } catch (error) {
     logger.error(`🚫 Job errored ${job.id} - ${error}`, { error });
 
-    Sentry.captureException(error, {
-      data: {
-        job: job.id,
-      },
-    });
+    // TransportableErrors are flow control - filter them out
+    // DB errors, uncaught exceptions, etc. will be captured
+    if (!(error instanceof TransportableError)) {
+      Sentry.captureException(error, {
+        data: {
+          job: job.id,
+        },
+      });
+    }
 
     try {
       // Move job to failed state in Redis
@@ -173,11 +177,15 @@ const processGenerateLlmsTxtJobInternal = async (
   } catch (error) {
     logger.error(`🚫 Job errored ${job.id} - ${error}`, { error });
 
-    Sentry.captureException(error, {
-      data: {
-        job: job.id,
-      },
-    });
+    // TransportableErrors are flow control - filter them out
+    // DB errors, uncaught exceptions, etc. will be captured
+    if (!(error instanceof TransportableError)) {
+      Sentry.captureException(error, {
+        data: {
+          job: job.id,
+        },
+      });
+    }
 
     try {
       await job.moveToFailed(error, token, false);
@@ -440,8 +448,6 @@ app.listen(workerPort, () => {
 });
 
 (async () => {
-  setSentryServiceTag("queue-worker");
-
   await initializeBlocklist().catch(e => {
     _logger.error("Failed to initialize blocklist", { error: e });
     process.exit(1);

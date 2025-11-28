@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { shutdownOtel } from "../otel";
 import "./sentry";
-import { setSentryServiceTag } from "./sentry";
 import * as Sentry from "@sentry/node";
 import { getExtractQueue, getRedisConnection } from "./queue-service";
 import { Job, Queue, Worker } from "bullmq";
@@ -20,6 +19,7 @@ import Express from "express";
 import { robustFetch } from "../scraper/scrapeURL/lib/fetch";
 import { BullMQOtel } from "bullmq-otel";
 import { getErrorContactMessage } from "../lib/deployment";
+import { TransportableError } from "../lib/error";
 import { initializeBlocklist } from "../scraper/WebScraper/utils/blocklist";
 import { initializeEngineForcing } from "../scraper/WebScraper/utils/engine-forcing";
 
@@ -131,11 +131,15 @@ const processExtractJobInternal = async (
   } catch (error) {
     logger.error(`🚫 Job errored ${job.id} - ${error}`, { error });
 
-    Sentry.captureException(error, {
-      data: {
-        job: job.id,
-      },
-    });
+    // TransportableErrors are flow control - filter them out
+    // DB errors, uncaught exceptions, etc. will be captured
+    if (!(error instanceof TransportableError)) {
+      Sentry.captureException(error, {
+        data: {
+          job: job.id,
+        },
+      });
+    }
 
     try {
       // Move job to failed state in Redis
@@ -294,8 +298,6 @@ app.listen(workerPort, () => {
 });
 
 (async () => {
-  setSentryServiceTag("extract-worker");
-
   await initializeBlocklist().catch(e => {
     _logger.error("Failed to initialize blocklist", { error: e });
     process.exit(1);
