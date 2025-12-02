@@ -40,7 +40,7 @@ describeIf(TEST_PRODUCTION || HAS_SEARCH || HAS_PROXY)("Search tests", () => {
       const res = await search(
         {
           query: "firecrawl",
-          limit: 5,
+          limit: 2,
           scrapeOptions: {
             formats: ["markdown"],
           },
