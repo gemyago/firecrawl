@@ -16,6 +16,8 @@ import type { CostTracking } from "../../lib/cost-tracking";
 import type { Logger } from "winston";
 configDotenv();
 
+const previewTeamId = "3adefd26-77ec-5968-8dcf-c94b5630d1de";
+
 async function robustInsert(
   table: string,
   data: any,
@@ -118,7 +120,7 @@ export async function logRequest(request: LoggedRequest) {
       api_version: request.api_version,
       team_id:
         request.team_id === "preview" || request.team_id?.startsWith("preview_")
-          ? null
+          ? previewTeamId
           : request.team_id,
       origin: request.origin,
       integration: request.integration ?? null,
@@ -174,7 +176,7 @@ export async function logScrape(scrape: LoggedScrape, force: boolean = false) {
       time_taken: scrape.time_taken,
       team_id:
         scrape.team_id === "preview" || scrape.team_id?.startsWith("preview_")
-          ? null
+          ? previewTeamId
           : scrape.team_id,
       options: scrape.zeroDataRetention ? null : scrape.options,
       cost_tracking: scrape.zeroDataRetention
@@ -267,7 +269,7 @@ export async function logCrawl(crawl: LoggedCrawl, force: boolean = false) {
         : crawl.url,
       team_id:
         crawl.team_id === "preview" || crawl.team_id?.startsWith("preview_")
-          ? null
+          ? previewTeamId
           : crawl.team_id,
       options: crawl.zeroDataRetention ? null : crawl.options,
       num_docs: crawl.num_docs,
@@ -310,7 +312,7 @@ export async function logBatchScrape(
       team_id:
         batchScrape.team_id === "preview" ||
         batchScrape.team_id?.startsWith("preview_")
-          ? null
+          ? previewTeamId
           : batchScrape.team_id,
       num_docs: batchScrape.num_docs,
       credits_cost: batchScrape.credits_cost,
@@ -356,7 +358,7 @@ export async function logSearch(search: LoggedSearch, force: boolean = false) {
         : search.query,
       team_id:
         search.team_id === "preview" || search.team_id?.startsWith("preview_")
-          ? null
+          ? previewTeamId
           : search.team_id,
       options: search.zeroDataRetention ? null : search.options,
       credits_cost: search.credits_cost,
@@ -408,7 +410,7 @@ export async function logExtract(
       urls: extract.urls,
       team_id:
         extract.team_id === "preview" || extract.team_id?.startsWith("preview_")
-          ? null
+          ? previewTeamId
           : extract.team_id,
       options: extract.options,
       model_kind: extract.model_kind,
@@ -457,7 +459,7 @@ export async function logMap(map: LoggedMap, force: boolean = false) {
         : map.url,
       team_id:
         map.team_id === "preview" || map.team_id?.startsWith("preview_")
-          ? null
+          ? previewTeamId
           : map.team_id,
       options: map.zeroDataRetention ? null : map.options,
       num_results: map.results.length,
@@ -504,7 +506,7 @@ export async function logLlmsTxt(
       url: llmsTxt.url,
       team_id:
         llmsTxt.team_id === "preview" || llmsTxt.team_id?.startsWith("preview_")
-          ? null
+          ? previewTeamId
           : llmsTxt.team_id,
       options: llmsTxt.options,
       num_urls: llmsTxt.num_urls,
@@ -553,7 +555,7 @@ export async function logDeepResearch(
       team_id:
         deepResearch.team_id === "preview" ||
         deepResearch.team_id?.startsWith("preview_")
-          ? null
+          ? previewTeamId
           : deepResearch.team_id,
       options: deepResearch.options,
       time_taken: deepResearch.time_taken,
