@@ -38,29 +38,25 @@ export async function scrapeController(
       // Set initial span attributes
       setSpanAttributes(span, {
         "scrape.job_id": jobId,
-        "scrape.url": (req.body as any)?.url,
+        "scrape.url": req.body.url,
         "scrape.team_id": req.auth.team_id,
         "scrape.api_key_id": req.acuc?.api_key_id,
         "scrape.middleware_time_ms": controllerStartTime - middlewareStartTime,
       });
 
       // Validation span
-      const parsedBody = await withSpan(
-        "api.scrape.validate",
-        async validateSpan => {
-          const parsed = scrapeRequestSchema.parse(req.body);
-          setSpanAttributes(validateSpan, {
-            "validation.success": true,
-          });
-          return parsed;
-        },
-      );
+      await withSpan("api.scrape.validate", async validateSpan => {
+        req.body = scrapeRequestSchema.parse(req.body);
+        setSpanAttributes(validateSpan, {
+          "validation.success": true,
+        });
+      });
 
       // Permission check span
       const permissions = await withSpan(
         "api.scrape.check_permissions",
         async permSpan => {
-          const perms = checkPermissions(parsedBody, req.acuc?.flags);
+          const perms = checkPermissions(req.body, req.acuc?.flags);
           setSpanAttributes(permSpan, {
             "permissions.success": !perms.error,
             "permissions.error": perms.error,
@@ -81,7 +77,7 @@ export async function scrapeController(
       }
 
       const zeroDataRetention =
-        req.acuc?.flags?.forceZDR ?? parsedBody.zeroDataRetention ?? false;
+        req.acuc?.flags?.forceZDR ?? req.body.zeroDataRetention ?? false;
 
       const logger = _logger.child({
         method: "scrapeController",
@@ -98,7 +94,7 @@ export async function scrapeController(
       logger.debug("Scrape " + jobId + " starting", {
         version: "v2",
         scrapeId: jobId,
-        request: parsedBody,
+        request: req.body,
         originalRequest: preNormalizedBody,
         account: req.account,
       });
@@ -116,20 +112,20 @@ export async function scrapeController(
 
       setSpanAttributes(span, {
         "scrape.zero_data_retention": zeroDataRetention,
-        "scrape.origin": parsedBody.origin,
-        "scrape.timeout": parsedBody.timeout,
+        "scrape.origin": req.body.origin,
+        "scrape.timeout": req.body.timeout,
       });
 
-      const origin = parsedBody.origin;
-      const timeout = parsedBody.timeout;
+      const origin = req.body.origin;
+      const timeout = req.body.timeout;
 
       const isDirectToBullMQ =
         process.env.SEARCH_PREVIEW_TOKEN !== undefined &&
-        process.env.SEARCH_PREVIEW_TOKEN === parsedBody.__searchPreviewToken;
+        process.env.SEARCH_PREVIEW_TOKEN === req.body.__searchPreviewToken;
 
       const totalWait =
-        (parsedBody.waitFor ?? 0) +
-        (parsedBody.actions ?? []).reduce(
+        (req.body.waitFor ?? 0) +
+        (req.body.actions ?? []).reduce(
           (a, x) => (x.type === "wait" ? (x.milliseconds ?? 0) : 0) + a,
           0,
         );
@@ -294,7 +290,7 @@ export async function scrapeController(
         }
       }
 
-      if (!hasFormatOfType(parsedBody.formats, "rawHtml")) {
+      if (!hasFormatOfType(req.body.formats, "rawHtml")) {
         if (doc && doc.rawHtml) {
           delete doc.rawHtml;
         }
