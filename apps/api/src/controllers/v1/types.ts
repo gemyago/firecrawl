@@ -578,7 +578,7 @@ const extractTransform = (obj: ScrapeOptions) => {
   }
 
   if (includesFormat(obj.formats, "json")) {
-    obj.formats.push({ type: "extract" } as any);
+    obj.formats.push("extract");
   }
 
   // Convert JSON options to extract options if needed
@@ -778,10 +778,10 @@ const scrapeRequestSchemaBase = baseScrapeOptions
     integration: integrationSchema.optional().transform(val => val || null),
     timeout: z.int().positive().finite().prefault(30000),
     zeroDataRetention: z.boolean().optional(),
-  });
+  })
+  .strict();
 
 export const scrapeRequestSchema = scrapeRequestSchemaBase
-  .strict()
   .refine(extractRefine, extractRefineOpts)
   .refine(fire1Refine, fire1RefineOpts)
   .refine(waitForRefine, waitForRefineOpts)
