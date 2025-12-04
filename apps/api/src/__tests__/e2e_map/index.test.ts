@@ -1,8 +1,6 @@
 import request from "supertest";
 import { config } from "../../config";
-import dotenv from "dotenv";
 
-dotenv.config();
 const TEST_URL = "http://127.0.0.1:3002";
 
 describe("E2E Tests for Map API Routes", () => {

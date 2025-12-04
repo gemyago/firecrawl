@@ -1,11 +1,8 @@
 import request from "supertest";
 import { config } from "../../config";
-import dotenv from "dotenv";
 import { BLOCKLISTED_URL_MESSAGE } from "../../lib/strings";
 const fs = require("fs");
 const path = require("path");
-
-dotenv.config();
 
 const TEST_URL = "http://127.0.0.1:3002";
 

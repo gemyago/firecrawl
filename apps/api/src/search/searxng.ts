@@ -1,10 +1,7 @@
 import axios from "axios";
 import { config } from "../config";
-import dotenv from "dotenv";
 import { SearchResult } from "../../src/lib/entities";
 import { logger } from "../lib/logger";
-
-dotenv.config();
 
 interface SearchOptions {
   tbs?: string;

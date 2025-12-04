@@ -1,4 +1,3 @@
-import dotenv from "dotenv";
 import { config } from "../../config";
 import {
   SearchResult,
@@ -8,8 +7,6 @@ import {
 import * as Sentry from "@sentry/node";
 import { logger } from "../../lib/logger";
 import { executeWithRetry, attemptRequest } from "../../lib/retry-utils";
-
-dotenv.config();
 
 const useFireEngine =
   config.FIRE_ENGINE_BETA_URL !== "" &&

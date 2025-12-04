@@ -1,21 +1,21 @@
 import request from "supertest";
 import { config } from "../../config";
-import dotenv from "dotenv";
 import { v7 as uuidv7 } from "uuid";
 import { BLOCKLISTED_URL_MESSAGE } from "../../lib/strings";
-
-dotenv.config();
 
 // const TEST_URL = 'http://localhost:3002'
 const TEST_URL = "http://127.0.0.1:3002";
 
 describe("E2E Tests for API Routes", () => {
+  let originalUseDbAuth: boolean | undefined;
+
   beforeAll(() => {
+    originalUseDbAuth = config.USE_DB_AUTHENTICATION;
     config.USE_DB_AUTHENTICATION = true;
   });
 
   afterAll(() => {
-    delete config.USE_DB_AUTHENTICATION;
+    config.USE_DB_AUTHENTICATION = originalUseDbAuth;
   });
 
   describe("GET /e2e-test", () => {

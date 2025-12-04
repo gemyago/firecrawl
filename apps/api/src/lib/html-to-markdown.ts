@@ -2,14 +2,11 @@ import koffi from "koffi";
 import { config } from "../config";
 import "../services/sentry";
 import * as Sentry from "@sentry/node";
-
-import dotenv from "dotenv";
 import { logger } from "./logger";
 import { stat } from "fs/promises";
 import { HTML_TO_MARKDOWN_PATH } from "../natives";
 import { convertHTMLToMarkdownWithHttpService } from "./html-to-markdown-client";
 import { postProcessMarkdown } from "@mendable/firecrawl-rs";
-dotenv.config();
 
 // TODO: add a timeout to the Go parser
 

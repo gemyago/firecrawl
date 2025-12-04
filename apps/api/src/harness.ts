@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { config } from "./config";
 import { type ChildProcess, spawn } from "child_process";
 import * as net from "net";
@@ -626,7 +625,7 @@ async function startServices(command?: string[]): Promise<Services> {
     {
       NUQ_REDUCE_NOISE: "true",
       NUQ_POD_NAME: "worker",
-      WORKER_PORT: WORKER_PORT,
+      WORKER_PORT: String(WORKER_PORT),
     },
   );
 
@@ -638,7 +637,7 @@ async function startServices(command?: string[]): Promise<Services> {
     {
       NUQ_REDUCE_NOISE: "true",
       NUQ_POD_NAME: "extract-worker",
-      EXTRACT_WORKER_PORT: EXTRACT_WORKER_PORT,
+      EXTRACT_WORKER_PORT: String(EXTRACT_WORKER_PORT),
     },
   );
 
