@@ -7,16 +7,18 @@ import {
   scrapeRequestSchema,
   ScrapeResponse,
 } from "./types";
-import { v4 as uuidv4 } from "uuid";
+import { v7 as uuidv7 } from "uuid";
 import { getJobPriority } from "../../lib/job-priority";
 import { fromV1ScrapeOptions } from "../v2/types";
 import { TransportableError } from "../../lib/error";
 import { NuQJob } from "../../services/worker/nuq";
 import { checkPermissions } from "../../lib/permissions";
+import { includesFormat } from "../../lib/format-utils";
 import { teamConcurrencySemaphore } from "../../services/worker/team-semaphore";
 import { processJobInternal } from "../../services/worker/scrape-worker";
 import { ScrapeJobData } from "../../types";
 import { AbortManagerThrownError } from "../../scraper/scrapeURL/lib/abortManager";
+import { logRequest } from "../../services/logging/log_job";
 
 export async function scrapeController(
   req: RequestWithAuth<{}, ScrapeResponse, ScrapeRequest>,
@@ -27,7 +29,7 @@ export async function scrapeController(
     (req as any).requestTiming?.startTime || new Date().getTime();
   const controllerStartTime = new Date().getTime();
 
-  const jobId: string = uuidv4();
+  const jobId: string = uuidv7();
   const preNormalizedBody = { ...req.body };
   req.body = scrapeRequestSchema.parse(req.body);
 
@@ -60,6 +62,17 @@ export async function scrapeController(
     request: req.body,
     originalRequest: preNormalizedBody,
     account: req.account,
+  });
+
+  await logRequest({
+    id: jobId,
+    kind: "scrape",
+    api_version: "v1",
+    team_id: req.auth.team_id,
+    origin: req.body.origin,
+    integration: req.body.integration,
+    target_hint: req.body.url,
+    zeroDataRetention: zeroDataRetention || false,
   });
 
   const origin = req.body.origin;
@@ -193,7 +206,7 @@ export async function scrapeController(
 
   logger.info("Removed job from queue");
 
-  if (!req.body.formats.includes("rawHtml")) {
+  if (!includesFormat(req.body.formats, "rawHtml")) {
     if (doc && doc.rawHtml) {
       delete doc.rawHtml;
     }
@@ -201,6 +214,21 @@ export async function scrapeController(
 
   const totalRequestTime = new Date().getTime() - middlewareStartTime;
   const controllerTime = new Date().getTime() - controllerStartTime;
+
+  let usedLlm =
+    includesFormat(req.body.formats, "json") ||
+    includesFormat(req.body.formats, "summary") ||
+    includesFormat(req.body.formats, "branding") ||
+    includesFormat(req.body.formats, "extract");
+
+  if (
+    !usedLlm &&
+    includesFormat(req.body.formats, "changeTracking") &&
+    req.body.changeTrackingOptions?.modes?.includes("json")
+  ) {
+    usedLlm = true;
+  }
+
   logger.info("Request metrics", {
     version: "v1",
     mode: "scrape",
@@ -211,6 +239,8 @@ export async function scrapeController(
     controllerTime,
     totalRequestTime,
     totalWait,
+    usedLlm,
+    formats: req.body.formats,
   });
 
   return res.status(200).json({
