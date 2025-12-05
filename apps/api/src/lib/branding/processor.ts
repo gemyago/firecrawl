@@ -81,6 +81,27 @@ export function hexify(
   }
 }
 
+// Calculate representative borderRadius from corners (max non-zero value)
+function calculateRepresentativeBorderRadius(borderRadius?: {
+  topLeft?: number | null;
+  topRight?: number | null;
+  bottomRight?: number | null;
+  bottomLeft?: number | null;
+}): string {
+  if (!borderRadius) {
+    return "0px";
+  }
+
+  const cornerValues = [
+    borderRadius.topLeft || 0,
+    borderRadius.topRight || 0,
+    borderRadius.bottomRight || 0,
+    borderRadius.bottomLeft || 0,
+  ];
+  const maxCorner = Math.max(...cornerValues);
+  return maxCorner > 0 ? `${maxCorner}px` : "0px";
+}
+
 // Calculate contrast for text readability
 function contrastYIQ(hex: string): number {
   if (!hex) return 0;
@@ -443,15 +464,9 @@ export function processRawBranding(raw: BrandingScriptReturn): BrandingProfile {
           : "0px",
     };
 
-    // Calculate representative borderRadius from corners (max non-zero value)
-    const cornerValues = [
-      s.borderRadius?.topLeft || 0,
-      s.borderRadius?.topRight || 0,
-      s.borderRadius?.bottomRight || 0,
-      s.borderRadius?.bottomLeft || 0,
-    ];
-    const maxCorner = Math.max(...cornerValues);
-    const representativeBorderRadius = maxCorner > 0 ? `${maxCorner}px` : "0px";
+    const representativeBorderRadius = calculateRepresentativeBorderRadius(
+      s.borderRadius,
+    );
 
     return {
       index: idx,
@@ -583,15 +598,9 @@ function extractInputSnapshots(
           : "0px",
     };
 
-    // Calculate representative borderRadius from corners (max non-zero value)
-    const cornerValues = [
-      input.borderRadius?.topLeft || 0,
-      input.borderRadius?.topRight || 0,
-      input.borderRadius?.bottomRight || 0,
-      input.borderRadius?.bottomLeft || 0,
-    ];
-    const maxCorner = Math.max(...cornerValues);
-    const representativeBorderRadius = maxCorner > 0 ? `${maxCorner}px` : "0px";
+    const representativeBorderRadius = calculateRepresentativeBorderRadius(
+      input.borderRadius,
+    );
 
     return {
       type: meta.type,

@@ -40,13 +40,10 @@ function detectLogoVariants(
     const similarIndices = [index];
     processed.add(index);
 
-    // Find similar logos
     candidates.forEach((other, otherIndex) => {
       if (index === otherIndex || processed.has(otherIndex)) return;
 
-      // Check if they're variants of the same logo
       const isSimilar =
-        // Same or very similar alt text (case insensitive)
         (candidate.alt &&
           other.alt &&
           candidate.alt.toLowerCase().replace(/\s+/g, "") ===
@@ -56,7 +53,6 @@ function detectLogoVariants(
         (candidate.src.includes(other.src.split("?")[0].split("/").pop()!) &&
           candidate.src.split("?")[0].split("/").pop() ===
             other.src.split("?")[0].split("/").pop()) ||
-        // Both have similar positioning and size (likely same logo, different themes)
         (Math.abs(candidate.position.top - other.position.top) < 20 &&
           Math.abs(candidate.position.left - other.position.left) < 50 &&
           Math.abs(candidate.position.width - other.position.width) < 30);
@@ -87,11 +83,9 @@ function pickBestVariant(
     const bestCandidate = candidates[best];
     const currentCandidate = candidates[current];
 
-    // Visible beats non-visible
     if (currentCandidate.isVisible && !bestCandidate.isVisible) return current;
     if (!currentCandidate.isVisible && bestCandidate.isVisible) return best;
 
-    // Header location beats others
     if (
       currentCandidate.indicators.inHeader &&
       !bestCandidate.indicators.inHeader
@@ -103,12 +97,10 @@ function pickBestVariant(
     )
       return best;
 
-    // Higher position (smaller top value) wins
     if (currentCandidate.position.top < bestCandidate.position.top)
       return current;
     if (currentCandidate.position.top > bestCandidate.position.top) return best;
 
-    // Has href to homepage
     if (
       currentCandidate.indicators.hrefMatch &&
       !bestCandidate.indicators.hrefMatch
@@ -126,7 +118,6 @@ function detectRepeatedLogos(candidates: LogoCandidate[]): Set<number> {
   const repeated = new Set<number>();
   const srcGroups = new Map<string, number[]>();
 
-  // Group by similar src
   candidates.forEach((candidate, index) => {
     const srcKey =
       candidate.src.split("?")[0].split("/").pop()?.toLowerCase() ||
@@ -142,7 +133,6 @@ function detectRepeatedLogos(candidates: LogoCandidate[]): Set<number> {
     if (indices.length > 1) {
       const locations = new Set(indices.map(i => candidates[i].location));
       if (locations.size > 1) {
-        // Appears in multiple locations - strong brand indicator
         indices.forEach(i => repeated.add(i));
       }
     }
@@ -170,7 +160,6 @@ export function selectLogoWithConfidence(
     };
   }
 
-  // STEP 1: Detect logo variants and pick best from each group
   const variantGroups = detectLogoVariants(candidates);
   const repeatedLogos = detectRepeatedLogos(candidates);
 
@@ -180,7 +169,6 @@ export function selectLogoWithConfidence(
     repeatedLogosCount: repeatedLogos.size,
   });
 
-  // If we have variants, score only the best from each group
   const indicesToScore = new Set<number>();
   const variantBonuses = new Map<number, number>();
 
@@ -189,23 +177,18 @@ export function selectLogoWithConfidence(
       const bestIndex = pickBestVariant(candidates, variants);
       indicesToScore.add(bestIndex);
 
-      // Bonus: if this logo appears in multiple locations (repeated)
       if (variants.some(i => repeatedLogos.has(i))) {
-        variantBonuses.set(bestIndex, 15); // +15 for appearing multiple times
+        variantBonuses.set(bestIndex, 15);
       }
-      // Bonus: having multiple variants suggests it's important
       if (variants.length > 1) {
         variantBonuses.set(bestIndex, (variantBonuses.get(bestIndex) || 0) + 8);
       }
     });
   } else {
-    // No variants detected, score all
     candidates.forEach((_, index) => indicesToScore.add(index));
   }
 
-  // STEP 2: Score each candidate (or representative from each variant group)
   const scored = candidates.map((candidate, index) => {
-    // Skip if not in scoring list (it's a worse variant)
     if (!indicesToScore.has(index)) {
       return {
         index,
@@ -218,22 +201,20 @@ export function selectLogoWithConfidence(
     let score = 0;
     const reasons: string[] = [];
 
-    // Add variant bonuses first
     const variantBonus = variantBonuses.get(index) || 0;
     if (variantBonus > 0) {
       score += variantBonus;
       reasons.push(`variant bonus (+${variantBonus})`);
     }
 
-    // VERY STRONG indicators
     if (candidate.indicators.hrefMatch && candidate.indicators.inHeader) {
-      score += 50; // Logo in header linking to homepage = almost certainly the brand logo
+      score += 50;
       reasons.push("header logo linking to homepage");
     } else if (candidate.indicators.hrefMatch) {
-      score += 35; // Links to homepage
+      score += 35;
       reasons.push("links to homepage");
     } else if (candidate.indicators.inHeader) {
-      score += 25; // In header/nav
+      score += 25;
       reasons.push("in header");
     }
 
@@ -243,7 +224,6 @@ export function selectLogoWithConfidence(
       reasons.push("no link (brand logos usually link to homepage, penalty)");
     }
 
-    // STRONG indicators
     if (candidate.location === "header") {
       score += 20;
       reasons.push("header location");
@@ -254,13 +234,11 @@ export function selectLogoWithConfidence(
       reasons.push("visible");
     }
 
-    // Position - prefer top-left (typical logo position)
     if (candidate.position.top < 100 && candidate.position.left < 300) {
       score += 10;
       reasons.push("top-left position");
     }
 
-    // Extra bonus for being the HIGHEST logo (smallest top value)
     const isHighest = candidates.every(
       (other, otherIndex) =>
         otherIndex === index || candidate.position.top <= other.position.top,
@@ -270,7 +248,6 @@ export function selectLogoWithConfidence(
       reasons.push("highest logo on page");
     }
 
-    // MODERATE indicators
     if (candidate.indicators.altMatch) {
       score += 8;
       reasons.push("alt matches logo/brand");
@@ -286,32 +263,27 @@ export function selectLogoWithConfidence(
       reasons.push("class contains logo");
     }
 
-    // Brand name match in alt text (if brand name provided)
     if (brandName) {
       const altLower = candidate.alt.toLowerCase().trim();
       const brandLower = brandName.toLowerCase().trim();
 
       if (altLower === brandLower) {
-        // Exact match - very strong indicator
         score += 20;
         reasons.push(`alt exactly matches brand name "${brandName}"`);
       } else if (
-        altLower.includes(brandLower) ||
-        brandLower.includes(altLower)
+        altLower &&
+        (altLower.includes(brandLower) || brandLower.includes(altLower))
       ) {
-        // Partial match
         score += 12;
         reasons.push(`alt contains brand name "${brandName}"`);
       }
 
-      // Also check src for brand name
       if (candidate.src.toLowerCase().includes(brandLower)) {
         score += 6;
         reasons.push(`src contains brand name "${brandName}"`);
       }
     }
 
-    // Size considerations - not too small, not too large
     const area = candidate.position.width * candidate.position.height;
     const width = candidate.position.width;
     const height = candidate.position.height;
@@ -320,21 +292,14 @@ export function selectLogoWithConfidence(
       score += 5;
       reasons.push("reasonable size");
     } else if (area < 500) {
-      // Very small - likely an icon, not a logo
       score -= 8;
       reasons.push("too small (likely icon, penalty)");
-    } else if (area > 100000) {
-      // Very large - likely a banner, hero image, or og:image
-      score -= 10;
-      reasons.push("too large (likely banner/og:image, penalty)");
     } else if (area > 200000) {
-      // Extremely large - definitely not a logo (og:images are typically 1200x630 = 756,000px²)
       score -= 20;
       reasons.push("extremely large (likely og:image, heavy penalty)");
+      score -= 10;
+      reasons.push("too large (likely banner/og:image, penalty)");
     }
-
-    // Additional penalty for square icons that are very small (typical UI icons)
-    // UI icons are often 16x16, 20x20, 24x24, 32x32
     const isSquare = Math.abs(width - height) < 5;
     if (isSquare && (width < 40 || height < 40)) {
       score -= 12;
@@ -371,7 +336,6 @@ export function selectLogoWithConfidence(
     };
   });
 
-  // Filter out skipped variants and sort by score
   const validScored = scored.filter(s => s.score > -900);
   validScored.sort((a, b) => b.score - a.score);
 
@@ -387,11 +351,8 @@ export function selectLogoWithConfidence(
   const top = validScored[0];
   const secondBest = validScored[1];
 
-  // Calculate confidence based on score and separation from second place
   const scoreSeparation = secondBest ? top.score - secondBest.score : top.score;
 
-  // Decision logic:
-  // 1. STRONG confidence: top score >= 60 AND well separated from second (20+ points)
   if (top.score >= 60 && scoreSeparation >= 20) {
     return {
       selectedIndex: top.index,
@@ -401,7 +362,6 @@ export function selectLogoWithConfidence(
     };
   }
 
-  // 2. GOOD confidence: top score >= 45 AND reasonably separated (15+ points)
   if (top.score >= 45 && scoreSeparation >= 15) {
     return {
       selectedIndex: top.index,
@@ -411,7 +371,6 @@ export function selectLogoWithConfidence(
     };
   }
 
-  // 3. MODERATE confidence: top score >= 30
   if (top.score >= 30) {
     return {
       selectedIndex: top.index,
@@ -421,8 +380,6 @@ export function selectLogoWithConfidence(
     };
   }
 
-  // 4. LOW confidence: ambiguous case - needs LLM
-  // Return top candidate but signal that LLM should validate
   return {
     selectedIndex: top.index,
     confidence: 0.4,
@@ -435,8 +392,6 @@ export function selectLogoWithConfidence(
  * Determine if LLM validation is needed based on heuristic confidence
  */
 export function shouldUseLLMForLogoSelection(confidence: number): boolean {
-  // Always use LLM for logo validation to ensure quality
-  // Only skip LLM for extremely high confidence cases (> 0.85)
   return confidence < 0.85;
 }
 
@@ -479,11 +434,9 @@ export function getTopCandidatesForLLM(
     return { originalIndex, score, candidate };
   });
 
-  // Sort by score (highest first) and take top N
   scored.sort((a, b) => b.score - a.score);
   const topScored = scored.slice(0, maxCandidates);
 
-  // Create index map: new index -> original index
   const indexMap = new Map<number, number>();
   topScored.forEach((item, newIndex) => {
     indexMap.set(newIndex, item.originalIndex);

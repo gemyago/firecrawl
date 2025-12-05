@@ -54,7 +54,6 @@ export function mergeBrandingResults(
         const confidence = llm.logoSelection.confidence || 0;
         const alt = selectedLogo.alt || "";
         const altLower = alt.toLowerCase().trim();
-        const src = selectedLogo.src || "";
         const href = selectedLogo.href || "";
 
         // Red flags: these patterns indicate it's NOT a brand logo
@@ -72,24 +71,35 @@ export function mergeBrandingResults(
           );
 
         // Check for external links - brand logos should NOT link to external websites
+        // Note: External links should already be filtered out in brandingScript.ts
+        // This is a minimal safety check - we can't verify external links without page URL
         let isExternalLink = false;
         if (href && href.trim()) {
           const hrefLower = href.toLowerCase().trim();
-          // If it looks like an external link (has protocol or starts with //)
+          // Relative URLs (starting with /) are always internal
+          // Full URLs should have been filtered already, but if they got through,
+          // we can't verify they're internal without the page URL (window.location not available in Node.js)
+          // So we'll only flag known external service patterns that should have been filtered
           if (
             hrefLower.startsWith("http://") ||
             hrefLower.startsWith("https://") ||
             hrefLower.startsWith("//")
           ) {
-            // It should have been filtered out already, but double-check
-            // Brand logos link to homepage (/), not external sites
-            isExternalLink =
-              !hrefLower.includes(window?.location?.hostname || "") &&
-              !(
-                hrefLower.endsWith("/") ||
-                hrefLower.endsWith("/home") ||
-                hrefLower.endsWith("/index")
-              );
+            // Check for known external service domains (should have been filtered already)
+            const externalServiceDomains = [
+              "github.com",
+              "twitter.com",
+              "x.com",
+              "facebook.com",
+              "linkedin.com",
+            ];
+            if (
+              externalServiceDomains.some(domain => hrefLower.includes(domain))
+            ) {
+              isExternalLink = true;
+            }
+            // Note: We can't verify other full URLs without page URL, so we trust
+            // that brandingScript.ts already filtered them correctly
           }
         }
 
