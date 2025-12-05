@@ -61,10 +61,76 @@ export async function brandingTransformer(
         ? getTopCandidatesForLLM(logoCandidates, 10)
         : { filteredCandidates: [], indexMap: new Map<number, number>() };
 
+    // Limit buttons to top 12 most relevant ones to reduce prompt size
+    // Prioritize buttons with CTA indicators, vibrant colors, or common CTA text
+    let limitedButtons = buttonSnapshots;
+    const buttonIndexMap = new Map<number, number>(); // LLM index -> original index
+
+    if (buttonSnapshots.length > 12) {
+      const scored = buttonSnapshots
+        .map((btn, idx) => {
+          let score = 0;
+          const text = (btn.text || "").toLowerCase();
+          const bgColor = btn.background || "";
+
+          // Score common CTA text (higher priority)
+          const primaryCtaKeywords = [
+            "get started",
+            "sign up",
+            "sign in",
+            "login",
+            "register",
+            "read",
+            "learn",
+            "download",
+            "buy",
+            "shop",
+          ];
+          if (primaryCtaKeywords.some(keyword => text.includes(keyword)))
+            score += 100;
+
+          // Score secondary CTA text
+          const secondaryCtaKeywords = ["try", "start", "view", "explore"];
+          if (secondaryCtaKeywords.some(keyword => text.includes(keyword)))
+            score += 50;
+
+          // Score vibrant colors (not white/transparent/gray)
+          if (
+            bgColor &&
+            !bgColor.match(
+              /transparent|white|#fff|#ffffff|gray|grey|#f[0-9a-f]{5}/i,
+            )
+          ) {
+            score += 30;
+          }
+
+          return { btn, originalIdx: idx, score };
+        })
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 12);
+
+      limitedButtons = scored.map(item => item.btn);
+
+      // Create index map: LLM index (0-11) -> original index
+      scored.forEach((item, llmIdx) => {
+        buttonIndexMap.set(llmIdx, item.originalIdx);
+      });
+    } else {
+      // No filtering needed, create identity map
+      buttonSnapshots.forEach((_, idx) => {
+        buttonIndexMap.set(idx, idx);
+      });
+    }
+
+    meta.logger.info("Button filtering for LLM", {
+      totalButtons: buttonSnapshots.length,
+      limitedButtons: limitedButtons.length,
+    });
+
     // TIER 2: Only call LLM if heuristics are uncertain
     const llmEnhancement = await enhanceBrandingWithLLM({
       jsAnalysis: jsBranding,
-      buttons: buttonSnapshots,
+      buttons: limitedButtons,
       logoCandidates:
         needsLLMValidation && filteredCandidates.length > 0
           ? filteredCandidates
@@ -77,7 +143,7 @@ export async function brandingTransformer(
       teamId: meta.internalOptions.teamId,
     });
 
-    // Map LLM's filtered index back to original index
+    // Map LLM's filtered index back to original index for logos
     if (needsLLMValidation && llmEnhancement.logoSelection) {
       const llmFilteredIndex = llmEnhancement.logoSelection.selectedLogoIndex;
       const llmOriginalIndex = indexMap.get(llmFilteredIndex);
@@ -85,6 +151,30 @@ export async function brandingTransformer(
       if (llmOriginalIndex !== undefined) {
         // Update the selection with the original index
         llmEnhancement.logoSelection.selectedLogoIndex = llmOriginalIndex;
+      }
+    }
+
+    // Map LLM's button indices back to original indices
+    if (llmEnhancement.buttonClassification) {
+      const llmPrimaryIdx =
+        llmEnhancement.buttonClassification.primaryButtonIndex;
+      const llmSecondaryIdx =
+        llmEnhancement.buttonClassification.secondaryButtonIndex;
+
+      if (llmPrimaryIdx >= 0) {
+        const originalPrimaryIdx = buttonIndexMap.get(llmPrimaryIdx);
+        if (originalPrimaryIdx !== undefined) {
+          llmEnhancement.buttonClassification.primaryButtonIndex =
+            originalPrimaryIdx;
+        }
+      }
+
+      if (llmSecondaryIdx >= 0) {
+        const originalSecondaryIdx = buttonIndexMap.get(llmSecondaryIdx);
+        if (originalSecondaryIdx !== undefined) {
+          llmEnhancement.buttonClassification.secondaryButtonIndex =
+            originalSecondaryIdx;
+        }
       }
     }
 

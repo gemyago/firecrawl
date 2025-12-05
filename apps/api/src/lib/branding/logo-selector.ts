@@ -237,6 +237,12 @@ export function selectLogoWithConfidence(
       reasons.push("in header");
     }
 
+    // Penalty for no link at all - brand logos are usually clickable
+    if (!candidate.href || candidate.href.trim() === "") {
+      score -= 15;
+      reasons.push("no link (brand logos usually link to homepage, penalty)");
+    }
+
     // STRONG indicators
     if (candidate.location === "header") {
       score += 20;
@@ -307,6 +313,9 @@ export function selectLogoWithConfidence(
 
     // Size considerations - not too small, not too large
     const area = candidate.position.width * candidate.position.height;
+    const width = candidate.position.width;
+    const height = candidate.position.height;
+
     if (area > 1000 && area < 50000) {
       score += 5;
       reasons.push("reasonable size");
@@ -315,21 +324,27 @@ export function selectLogoWithConfidence(
       score -= 8;
       reasons.push("too small (likely icon, penalty)");
     } else if (area > 100000) {
-      // Very large - likely a banner or hero image, not a logo
+      // Very large - likely a banner, hero image, or og:image
       score -= 10;
-      reasons.push("too large (likely banner, penalty)");
+      reasons.push("too large (likely banner/og:image, penalty)");
+    } else if (area > 200000) {
+      // Extremely large - definitely not a logo (og:images are typically 1200x630 = 756,000px²)
+      score -= 20;
+      reasons.push("extremely large (likely og:image, heavy penalty)");
+    }
+
+    // Additional penalty for square icons that are very small (typical UI icons)
+    // UI icons are often 16x16, 20x20, 24x24, 32x32
+    const isSquare = Math.abs(width - height) < 5;
+    if (isSquare && (width < 40 || height < 40)) {
+      score -= 12;
+      reasons.push("small square icon (likely UI icon, heavy penalty)");
     }
 
     // SVGs are often logos (but not always)
     if (candidate.isSvg) {
       score += 3;
       reasons.push("SVG format");
-    }
-
-    // Text-based logos are valid
-    if (candidate.source === "text-based-logo") {
-      score += 8;
-      reasons.push("text-based logo");
     }
 
     // Penalties
@@ -420,9 +435,9 @@ export function selectLogoWithConfidence(
  * Determine if LLM validation is needed based on heuristic confidence
  */
 export function shouldUseLLMForLogoSelection(confidence: number): boolean {
-  // Only use LLM when heuristic confidence is low/ambiguous
-  // This saves cost for 70-80% of cases
-  return confidence < 0.7;
+  // Always use LLM for logo validation to ensure quality
+  // Only skip LLM for extremely high confidence cases (> 0.85)
+  return confidence < 0.85;
 }
 
 /**

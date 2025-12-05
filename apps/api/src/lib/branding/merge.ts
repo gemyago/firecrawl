@@ -26,27 +26,124 @@ export function mergeBrandingResults(
 ): BrandingProfile {
   const merged: BrandingProfile = { ...js };
 
-  // Use LLM-selected logo if available
-  if (
-    llm.logoSelection &&
-    llm.logoSelection.selectedLogoIndex !== undefined &&
-    llm.logoSelection.selectedLogoIndex >= 0 &&
-    logoCandidates &&
-    logoCandidates.length > 0 &&
-    llm.logoSelection.selectedLogoIndex < logoCandidates.length
-  ) {
-    const selectedLogo = logoCandidates[llm.logoSelection.selectedLogoIndex];
-    if (selectedLogo) {
-      // Initialize images object if it doesn't exist
-      if (!merged.images) {
-        merged.images = {};
+  // Handle logo selection: if LLM says no logo (-1), clear it
+  if (llm.logoSelection && llm.logoSelection.selectedLogoIndex !== undefined) {
+    // If LLM explicitly says no logo (returns -1), remove any logo that was set
+    if (llm.logoSelection.selectedLogoIndex === -1) {
+      if (merged.images) {
+        delete merged.images.logo;
       }
-      merged.images.logo = selectedLogo.src;
       (merged as any).__llm_logo_reasoning = {
-        selectedIndex: llm.logoSelection.selectedLogoIndex,
-        reasoning: llm.logoSelection.selectedLogoReasoning,
-        confidence: llm.logoSelection.confidence,
+        selectedIndex: -1,
+        reasoning:
+          llm.logoSelection.selectedLogoReasoning || "No valid logo found",
+        confidence: llm.logoSelection.confidence || 0,
+        rejected: true,
       };
+    }
+    // If LLM selected a valid logo index
+    else if (
+      llm.logoSelection.selectedLogoIndex >= 0 &&
+      logoCandidates &&
+      logoCandidates.length > 0 &&
+      llm.logoSelection.selectedLogoIndex < logoCandidates.length
+    ) {
+      const selectedLogo = logoCandidates[llm.logoSelection.selectedLogoIndex];
+      if (selectedLogo) {
+        // Quality checks before accepting the logo
+        const confidence = llm.logoSelection.confidence || 0;
+        const alt = selectedLogo.alt || "";
+        const altLower = alt.toLowerCase().trim();
+        const src = selectedLogo.src || "";
+        const href = selectedLogo.href || "";
+
+        // Red flags: these patterns indicate it's NOT a brand logo
+        const isLanguageWord =
+          /^(english|español|français|deutsch|italiano|português|中文|日本語|한국어|русский|العربية|en|es|fr|de|it|pt|zh|ja|ko|ru|ar)$/i.test(
+            altLower,
+          );
+        const isCommonMenuWord =
+          /^(menu|search|cart|login|signup|register|account|profile|settings|help|support|contact|about|home|shop|store|products|services|blog|news)$/i.test(
+            altLower,
+          );
+        const isUIIcon =
+          /search|icon|menu|hamburger|cart|user|bell|notification|settings|close|times/i.test(
+            altLower,
+          );
+
+        // Check for external links - brand logos should NOT link to external websites
+        let isExternalLink = false;
+        if (href && href.trim()) {
+          const hrefLower = href.toLowerCase().trim();
+          // If it looks like an external link (has protocol or starts with //)
+          if (
+            hrefLower.startsWith("http://") ||
+            hrefLower.startsWith("https://") ||
+            hrefLower.startsWith("//")
+          ) {
+            // It should have been filtered out already, but double-check
+            // Brand logos link to homepage (/), not external sites
+            isExternalLink =
+              !hrefLower.includes(window?.location?.hostname || "") &&
+              !(
+                hrefLower.endsWith("/") ||
+                hrefLower.endsWith("/home") ||
+                hrefLower.endsWith("/index")
+              );
+          }
+        }
+
+        // Check for very small square icons (typical UI icons: 16x16, 20x20, 24x24, etc.)
+        const width = selectedLogo.position?.width || 0;
+        const height = selectedLogo.position?.height || 0;
+        const isSmallSquareIcon =
+          Math.abs(width - height) < 5 && width < 40 && width > 0;
+
+        const hasRedFlags =
+          isLanguageWord ||
+          isCommonMenuWord ||
+          isUIIcon ||
+          isSmallSquareIcon ||
+          isExternalLink;
+
+        // Only set logo if:
+        // 1. Confidence is good (>= 0.5) OR
+        // 2. Logo has very strong indicators (inHeader + hrefMatch + reasonable size)
+        // AND no red flags
+        const area =
+          (selectedLogo.position?.width || 0) *
+          (selectedLogo.position?.height || 0);
+        const hasReasonableSize = area >= 500 && area <= 100000;
+        const hasStrongIndicators =
+          selectedLogo.indicators?.inHeader &&
+          selectedLogo.indicators?.hrefMatch &&
+          hasReasonableSize;
+
+        const shouldIncludeLogo =
+          !hasRedFlags &&
+          (confidence >= 0.5 || (hasStrongIndicators && confidence >= 0.4));
+
+        if (shouldIncludeLogo) {
+          // Initialize images object if it doesn't exist
+          if (!merged.images) {
+            merged.images = {};
+          }
+          merged.images.logo = selectedLogo.src;
+          (merged as any).__llm_logo_reasoning = {
+            selectedIndex: llm.logoSelection.selectedLogoIndex,
+            reasoning: llm.logoSelection.selectedLogoReasoning,
+            confidence: llm.logoSelection.confidence,
+          };
+        } else {
+          // Log why we're not including the logo
+          (merged as any).__llm_logo_reasoning = {
+            selectedIndex: llm.logoSelection.selectedLogoIndex,
+            reasoning: `Logo rejected: ${hasRedFlags ? "Red flags detected (language/menu word)" : "Low confidence"}. ${llm.logoSelection.selectedLogoReasoning}`,
+            confidence: llm.logoSelection.confidence,
+            rejected: true,
+          };
+        }
+      }
     }
   }
 

@@ -14,14 +14,10 @@ export const getBrandingScript = () => String.raw`
     BUTTON_MIN_HEIGHT: 25,
     BUTTON_MIN_PADDING_VERTICAL: 3,
     BUTTON_MIN_PADDING_HORIZONTAL: 6,
-    LOGO_MAX_TEXT_LENGTH: 50,
-    TEXT_LOGO_THRESHOLD: 20,
-    STYLED_TEXT_LOGO_THRESHOLD: 30,
     MAX_PARENT_TRAVERSAL: 5,
     MAX_BACKGROUND_SAMPLES: 100,
     MIN_SIGNIFICANT_AREA: 1000,
     MIN_LARGE_CONTAINER_AREA: 10000,
-    CANVAS_SCALE: 2,
     DUPLICATE_POSITION_THRESHOLD: 1,
   };
 
@@ -51,6 +47,24 @@ export const getBrandingScript = () => String.raw`
     if (v.endsWith("%")) return null;
     const num = parseFloat(v);
     return Number.isFinite(num) ? num : null;
+  };
+
+  const getClassNameString = (el) => {
+    if (!el || !el.className) return '';
+    try {
+      if (el.className.baseVal !== undefined) {
+        return String(el.className.baseVal || '');
+      }
+      if (typeof el.className.toString === 'function') {
+        return String(el.className);
+      }
+      if (typeof el.className === 'string') {
+        return el.className;
+      }
+      return String(el.className || '');
+    } catch (e) {
+      return '';
+    }
   };
 
   const resolveSvgStyles = svg => {
@@ -231,7 +245,7 @@ export const getBrandingScript = () => String.raw`
     
     if (el.tagName.toLowerCase() === 'a') {
       try {
-        const classNames = (el.className || '').toLowerCase();
+        const classNames = getClassNameString(el).toLowerCase();
         const cs = getComputedStyleCached(el);
         const rect = el.getBoundingClientRect();
         
@@ -298,18 +312,12 @@ export const getBrandingScript = () => String.raw`
         const attrClass = el.getAttribute("class");
         if (attrClass) classNames = attrClass.toLowerCase();
       }
-      if (!classNames && el.className) {
-        if (typeof el.className === "string") {
-          classNames = el.className.toLowerCase();
-        } else if (el.className?.baseVal) {
-          classNames = el.className.baseVal.toLowerCase();
-        }
+      if (!classNames) {
+        classNames = getClassNameString(el).toLowerCase();
       }
     } catch (e) {
       try {
-        if (el.className && typeof el.className === "string") {
-          classNames = el.className.toLowerCase();
-        }
+        classNames = getClassNameString(el).toLowerCase();
       } catch (e2) {
         classNames = "";
       }
@@ -489,190 +497,7 @@ export const getBrandingScript = () => String.raw`
     };
   };
 
-  const textElementToImage = (el) => {
-    try {
-      const rect = el.getBoundingClientRect();
-      const cs = getComputedStyleCached(el);
-      
-      if (rect.width < 20 || rect.height < 10 || rect.width === 0 || rect.height === 0) {
-        return null;
-      }
-      
-      const scale = CONSTANTS.CANVAS_SCALE;
-      const canvas = document.createElement('canvas');
-      canvas.width = rect.width * scale;
-      canvas.height = rect.height * scale;
-      const ctx = canvas.getContext('2d');
-      
-      if (!ctx) return null;
-      
-      ctx.scale(scale, scale);
-      
-      const fontSize = cs.fontSize || '16px';
-      const fontFamily = cs.fontFamily || 'sans-serif';
-      const fontWeight = cs.fontWeight || 'normal';
-      const fontStyle = cs.fontStyle || 'normal';
-      const textColor = cs.color || 'rgb(0, 0, 0)';
-      const bgColor = cs.backgroundColor || 'transparent';
-      
-      ctx.font = fontStyle + ' ' + fontWeight + ' ' + fontSize + ' ' + fontFamily;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      
-      const bgIsTransparent = bgColor === 'transparent' || bgColor === 'rgba(0, 0, 0, 0)';
-      if (!bgIsTransparent) {
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
-      } else {
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
-      }
-      
-      const borderWidth = parseFloat(cs.borderTopWidth) || 0;
-      const borderColor = cs.borderTopColor || 'transparent';
-      if (borderWidth > 0 && borderColor !== 'transparent') {
-        ctx.strokeStyle = borderColor;
-        ctx.lineWidth = borderWidth;
-        ctx.strokeRect(
-          borderWidth / 2,
-          borderWidth / 2,
-          (canvas.width / scale) - borderWidth,
-          (canvas.height / scale) - borderWidth
-        );
-      }
-      
-      ctx.fillStyle = textColor;
-      const text = el.textContent?.trim() || '';
-      
-      if (!text) return null;
-      
-      const canvasWidth = rect.width;
-      const canvasHeight = rect.height;
-      
-      const lines = text.split('\n').filter(line => line.trim());
-      const fontSizeNum = parseFloat(fontSize) || 16;
-      const lineHeight = fontSizeNum * 1.2;
-      
-      const totalTextHeight = lines.length * lineHeight;
-      
-      const centerY = canvasHeight / 2;
-      const startY = centerY - (totalTextHeight / 2) + (lineHeight / 2);
-      
-      const centerX = canvasWidth / 2;
-      
-      lines.forEach((line, idx) => {
-        if (line.trim()) {
-          const y = startY + (idx * lineHeight);
-          ctx.fillText(line, centerX, y);
-        }
-      });
-      
-      return canvas.toDataURL('image/png');
-    } catch (e) {
-      recordError('textElementToImage', e);
-      return null;
-    }
-  };
 
-  const findTextBasedLogos = () => {
-    const candidates = [];
-    
-    const headerNavSelectors = [
-      'header a',
-      'header span',
-      'header div',
-      'nav a',
-      'nav span',
-      'nav div',
-      '[role="banner"] a',
-      '[role="banner"] span',
-      '[role="banner"] div',
-      '[class*="navbar"] a',
-      '[class*="navbar"] span',
-      '[class*="navbar"] div',
-      '[class*="header"] a',
-      '[class*="header"] span',
-      '[class*="header"] div',
-    ];
-    
-    const allElements = new Set();
-    headerNavSelectors.forEach(selector => {
-      try {
-        Array.from(document.querySelectorAll(selector)).forEach(el => {
-          allElements.add(el);
-        });
-      } catch (e) {}
-    });
-    
-    Array.from(allElements).forEach(el => {
-      try {
-        const rect = el.getBoundingClientRect();
-        const cs = getComputedStyleCached(el);
-        const text = el.textContent?.trim() || '';
-        
-        if (!text || text.length > CONSTANTS.LOGO_MAX_TEXT_LENGTH) return;
-        
-        if (rect.width < 20 || rect.height < 10 || 
-            cs.display === 'none' || cs.visibility === 'hidden' || 
-            parseFloat(cs.opacity) === 0) {
-          return;
-        }
-        
-        const bgColor = cs.backgroundColor;
-        const hasBackground = bgColor && bgColor !== 'transparent' && bgColor !== 'rgba(0, 0, 0, 0)';
-        const hasBorder = parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0 ||
-                         parseFloat(cs.borderLeftWidth) > 0 || parseFloat(cs.borderRightWidth) > 0;
-        const hasBorderRadius = parseFloat(cs.borderRadius) > 0;
-        const hasPadding = parseFloat(cs.paddingTop) > 0 || parseFloat(cs.paddingBottom) > 0 ||
-                          parseFloat(cs.paddingLeft) > 0 || parseFloat(cs.paddingRight) > 0;
-        
-        const inHeader = el.closest('header, nav, [role="banner"], #navbar, [id*="navbar"], [class*="navbar"], [class*="header"]');
-        
-        const href = el.tagName.toLowerCase() === 'a' ? (el.getAttribute('href') || '') : '';
-        const hrefMatch = href === '/' || href === '/home' || href === '/index' || href === '';
-        
-        const classNames = (el.className || '').toLowerCase();
-        const hasLogoClass = /logo|brand|site-name|site-title/i.test(classNames);
-        
-        const hasCTAIndicator = 
-          el.matches('[data-primary-button],[data-secondary-button],[data-cta],[class*="cta"],[class*="hero"]') ||
-          el.getAttribute('data-primary-button') === 'true' ||
-          el.getAttribute('data-secondary-button') === 'true' ||
-          /button|btn|cta/i.test(classNames);
-        
-        const isFirstInContainer = el.parentElement && el.parentElement.firstElementChild === el;
-        const isLastInContainer = el.parentElement && el.parentElement.lastElementChild === el;
-        const isEarlyInHeader = inHeader && (isFirstInContainer || isLastInContainer);
-        
-        const looksLikeTextLogo = 
-          (inHeader && hrefMatch && (hasBackground || hasBorder || hasBorderRadius || hasPadding) && text.length <= CONSTANTS.LOGO_MAX_TEXT_LENGTH && !hasCTAIndicator) ||
-          (hasLogoClass && inHeader && !hasCTAIndicator) ||
-          (isEarlyInHeader && (hasBackground || hasBorder || hasBorderRadius) && text.length <= CONSTANTS.STYLED_TEXT_LOGO_THRESHOLD && !hasCTAIndicator) ||
-          (inHeader && (hasBackground || (hasBorder && hasBorderRadius)) && text.length <= CONSTANTS.TEXT_LOGO_THRESHOLD && !hasCTAIndicator);
-        
-        if (looksLikeTextLogo) {
-          const imageDataUrl = textElementToImage(el);
-          if (imageDataUrl) {
-            const anchorParent = el.closest('a') || (el.tagName.toLowerCase() === 'a' ? el : null);
-            const finalHref = anchorParent ? (anchorParent.getAttribute('href') || '') : href;
-            
-            candidates.push({
-              element: el,
-              text: text,
-              imageDataUrl: imageDataUrl,
-              rect: rect,
-              href: finalHref,
-              inHeader: !!inHeader,
-              hasBackground: !!hasBackground,
-              hasLogoClass: hasLogoClass,
-            });
-          }
-        }
-      } catch (e) {}
-    });
-    
-    return candidates;
-  };
 
   const findImages = () => {
     const imgs = [];
@@ -699,10 +524,98 @@ export const getBrandingScript = () => String.raw`
         style.opacity !== "0"
       );
 
+      const imgSrc = el.src || '';
+      if (imgSrc) {
+        const ogImageSrc = document.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
+        const twitterImageSrc = document.querySelector('meta[name="twitter:image"]')?.getAttribute('content') || '';
+        
+        if ((ogImageSrc && imgSrc.includes(ogImageSrc)) || 
+            (twitterImageSrc && imgSrc.includes(twitterImageSrc)) ||
+            (ogImageSrc && ogImageSrc.includes(imgSrc)) ||
+            (twitterImageSrc && twitterImageSrc.includes(imgSrc))) {
+          return;
+        }
+      }
+
       const inHeader = el.closest('header, nav, [role="banner"], #navbar, [id*="navbar"], [class*="navbar"], [class*="header"]');
+      
+      const langSwitcherParent = el.closest('[class*="lang"], [class*="language"], [class*="locale"], [class*="i18n"], [class*="translation"], [class*="switcher"], [id*="lang"], [id*="language"], [id*="locale"]');
+      if (langSwitcherParent) {
+        const parentClasses = getClassNameString(langSwitcherParent).toLowerCase();
+        if (/lang|language|locale|i18n|translation|switcher|selector|dropdown/i.test(parentClasses)) {
+          return;
+        }
+      }
+      
+      const insideButton = el.closest('button, [role="button"], input[type="button"], input[type="submit"]');
+      if (insideButton) {
+        return;
+      }
+      
+
+      const elementClasses = getClassNameString(el).toLowerCase();
+      const elementId = (el.id || '').toLowerCase();
+      const ariaLabel = (el.getAttribute?.('aria-label') || '').toLowerCase();
+      
+      const isSearchIcon = 
+        /search|magnif/i.test(elementClasses) ||
+        /search|magnif/i.test(elementId) ||
+        /search/i.test(ariaLabel) ||
+        el.closest('[class*="search"], [id*="search"], [role="search"]');
+      
+      if (isSearchIcon) return;
+      
+      const isUIIcon = 
+        /icon|menu|hamburger|bars|close|times|cart|user|account|profile|settings|notification|bell|chevron|arrow|caret|dropdown/i.test(elementClasses) ||
+        /icon|menu|hamburger|cart|user|bell/i.test(elementId) ||
+        /menu|close|cart|user|settings/i.test(ariaLabel);
+      
+      if (isUIIcon) {
+        const hasExplicitLogoIndicator = 
+          /logo|brand|site-name|site-title/i.test(elementClasses) ||
+          /logo|brand/i.test(elementId);
+        
+        if (!hasExplicitLogoIndicator) return;
+      }
       
       const anchorParent = el.closest('a');
       const href = anchorParent ? (anchorParent.getAttribute('href') || '') : '';
+      
+      if (href && href.trim()) {
+        const hrefLower = href.toLowerCase().trim();
+        
+        const isExternalLink = 
+          hrefLower.startsWith('http://') || 
+          hrefLower.startsWith('https://') || 
+          hrefLower.startsWith('//');
+        
+        if (isExternalLink) {
+          const externalServiceDomains = [
+            'github.com', 'twitter.com', 'x.com', 'facebook.com', 'linkedin.com',
+            'instagram.com', 'youtube.com', 'discord.com', 'slack.com',
+            'npmjs.com', 'pypi.org', 'crates.io', 'packagist.org',
+            'badge.fury.io', 'shields.io', 'img.shields.io', 'badgen.net',
+            'codecov.io', 'coveralls.io', 'circleci.com', 'travis-ci.org',
+            'app.netlify.com', 'vercel.com'
+          ];
+          
+          if (externalServiceDomains.some(domain => hrefLower.includes(domain))) {
+            return;
+          }
+          
+          try {
+            const currentHostname = window.location.hostname.toLowerCase();
+            const linkUrl = new URL(href, window.location.origin);
+            const linkHostname = linkUrl.hostname.toLowerCase();
+            
+            if (linkHostname !== currentHostname) {
+              return;
+            }
+          } catch (e) {
+            return;
+          }
+        }
+      }
       
       const isSvg = el.tagName.toLowerCase() === "svg";
       
@@ -714,7 +627,7 @@ export const getBrandingScript = () => String.raw`
       
       if (isSvg) {
         const svgId = el.id || "";
-        const svgClass = el.className?.baseVal || el.className || "";
+        const svgClass = getClassNameString(el);
         const svgAriaLabel = el.getAttribute("aria-label") || "";
         const svgTitle = el.querySelector("title")?.textContent || "";
         const svgText = el.textContent?.trim() || "";
@@ -724,11 +637,15 @@ export const getBrandingScript = () => String.raw`
         classMatch = /logo/i.test(svgClass);
         srcMatch = el.closest('[class*="logo"], [id*="logo"]') !== null;
       } else {
+        const imgId = el.id || "";
         alt = el.alt || "";
-        srcMatch = el.src ? /logo/i.test(el.src) : false;
+        
+        const idMatch = /logo/i.test(imgId);
+        srcMatch = (el.src ? /logo/i.test(el.src) : false) || idMatch;
         altMatch = /logo/i.test(alt);
-        const imgClass = el.className || "";
-        classMatch = /logo/i.test(imgClass) || el.closest('[class*="logo"], [id*="logo"]') !== null;
+        
+        const imgClass = getClassNameString(el);
+        classMatch = /logo/i.test(imgClass) || el.closest('[class*="logo"], [id*="logo"]') !== null || idMatch;
       }
       
       let src = "";
@@ -754,10 +671,23 @@ export const getBrandingScript = () => String.raw`
 
       if (href) {
         const normalizedHref = href.toLowerCase().trim();
+        
         hrefMatch = normalizedHref === '/' || 
                    normalizedHref === '/home' || 
                    normalizedHref === '/index' || 
                    normalizedHref === '';
+        
+        if (!hrefMatch && (normalizedHref.startsWith('http://') || normalizedHref.startsWith('https://') || normalizedHref.startsWith('//'))) {
+          try {
+            const currentHostname = window.location.hostname.toLowerCase();
+            const linkUrl = new URL(href, window.location.origin);
+            const linkHostname = linkUrl.hostname.toLowerCase();
+            
+            if (linkHostname === currentHostname && (linkUrl.pathname === '/' || linkUrl.pathname === '/home' || linkUrl.pathname === '/index.html')) {
+              hrefMatch = true;
+            }
+          } catch (e) {}
+        }
       }
 
       if (src) {
@@ -827,15 +757,45 @@ export const getBrandingScript = () => String.raw`
       });
       if (alreadyCollected) return;
       
-      const hasLogoId = /logo/i.test(svg.id || "");
-      const svgClass = svg.className?.baseVal || svg.className || "";
+      const insideButton = svg.closest('button, [role="button"], input[type="button"], input[type="submit"]');
+      if (insideButton) return;
+      
+      // Check for UI icon indicators
+      const svgId = svg.id || "";
+      const svgClass = getClassNameString(svg);
+      const svgAriaLabel = svg.getAttribute("aria-label") || "";
+      const svgTitle = svg.querySelector("title")?.textContent || "";
+      
+      // Skip search icons
+      const isSearchIcon = 
+        /search|magnif/i.test(svgId) ||
+        /search|magnif/i.test(svgClass) ||
+        /search/i.test(svgAriaLabel) ||
+        /search/i.test(svgTitle) ||
+        svg.closest('[class*="search"], [id*="search"], [role="search"]');
+      
+      if (isSearchIcon) return;
+      
+      // Skip other UI icons
+      const isUIIcon = 
+        /icon|menu|hamburger|bars|close|times|cart|user|account|profile|settings|notification|bell|chevron|arrow|caret|dropdown/i.test(svgClass) ||
+        /icon|menu|hamburger|cart|user|bell/i.test(svgId) ||
+        /menu|close|cart|user|settings/i.test(svgAriaLabel);
+      
+      const hasLogoId = /logo/i.test(svgId);
       const hasLogoClass = /logo/i.test(svgClass);
-      const hasLogoAriaLabel = /logo/i.test(svg.getAttribute("aria-label") || "");
-      const hasLogoTitle = /logo/i.test(svg.querySelector("title")?.textContent || "");
+      const hasLogoAriaLabel = /logo/i.test(svgAriaLabel);
+      const hasLogoTitle = /logo/i.test(svgTitle);
       const inHeaderNav = svg.closest('header, nav, [role="banner"], #navbar, [id*="navbar"], [class*="navbar"], [class*="header"]');
       const inLogoContainer = svg.closest('[class*="logo"], [id*="logo"]');
       const inHeaderNavArea = !!inHeaderNav;
       const inAnchorInHeader = svg.closest('a') && inHeaderNav;
+      
+      // If it looks like a UI icon, only collect if it has explicit logo indicators
+      if (isUIIcon) {
+        const hasExplicitLogoIndicator = hasLogoId || hasLogoClass || hasLogoAriaLabel || hasLogoTitle || inLogoContainer;
+        if (!hasExplicitLogoIndicator) return;
+      }
       
       const shouldCollect = 
         hasLogoId ||
@@ -852,40 +812,6 @@ export const getBrandingScript = () => String.raw`
           collectLogoCandidate(svg, "document.querySelectorAll(svg)");
         }
       }
-    });
-
-    const textLogos = findTextBasedLogos();
-    textLogos.forEach(textLogo => {
-      const rect = textLogo.rect;
-      const style = getComputedStyleCached(textLogo.element);
-      const isVisible = (
-        rect.width > 0 &&
-        rect.height > 0 &&
-        style.display !== "none" &&
-        style.visibility !== "hidden" &&
-        parseFloat(style.opacity) !== 0
-      );
-      
-      const href = textLogo.href || '';
-      const hrefMatch = href === '/' || href === '/home' || href === '/index' || href === '';
-      
-      logoCandidates.push({
-        src: textLogo.imageDataUrl,
-        alt: textLogo.text,
-        isSvg: false,
-        isVisible: isVisible,
-        location: textLogo.inHeader ? "header" : "body",
-        position: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
-        indicators: {
-          inHeader: textLogo.inHeader,
-          altMatch: false, // Text logos don't have alt
-          srcMatch: false, // Not from src
-          classMatch: textLogo.hasLogoClass,
-          hrefMatch: hrefMatch,
-        },
-        href: href || undefined,
-        source: "text-based-logo",
-      });
     });
 
     const seen = new Set();
@@ -1075,9 +1001,9 @@ export const getBrandingScript = () => String.raw`
     let titleBrand = "";
     if (title) {
       titleBrand = title
-        .replace(/\s*[-|–|—]\s*.*$/, "") // Remove after dash
-        .replace(/\s*:\s*.*$/, "") // Remove after colon
-        .replace(/\s*\|.*$/, "") // Remove after pipe
+        .replace(/\s*[-|–|—]\s*.*$/, "")
+        .replace(/\s*:\s*.*$/, "")
+        .replace(/\s*\|.*$/, "")
         .trim();
     }
 

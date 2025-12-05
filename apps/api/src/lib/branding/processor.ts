@@ -244,14 +244,8 @@ function inferFontsList(
 // Pick logo from images
 function pickLogo(images: Array<{ type: string; src: string }>): string | null {
   const byType = (t: string) => images.find(i => i.type === t)?.src;
-  return (
-    byType("logo") ||
-    byType("logo-svg") ||
-    byType("og") ||
-    byType("twitter") ||
-    byType("favicon") ||
-    null
-  );
+  // Only return actual logos, not og:image or twitter:image (those are for social sharing)
+  return byType("logo") || byType("logo-svg") || null;
 }
 
 // Process raw branding data into BrandingProfile

@@ -3,41 +3,63 @@ import { z } from "zod";
 // Schema for LLM output
 export const brandingEnhancementSchema = z.object({
   // Button classification - LLM picks which buttons are primary/secondary
-  buttonClassification: z.object({
-    primaryButtonIndex: z
-      .number()
-      .describe(
-        "Index of the primary CTA button in the provided list (0-based), or -1 if none found",
-      ),
-    primaryButtonReasoning: z
-      .string()
-      .describe("Why this button was selected as primary"),
-    secondaryButtonIndex: z
-      .number()
-      .describe(
-        "Index of the secondary button in the provided list (0-based), or -1 if none found",
-      ),
-    secondaryButtonReasoning: z
-      .string()
-      .describe("Why this button was selected as secondary"),
-    confidence: z
-      .number()
-      .min(0)
-      .max(1)
-      .describe("Confidence in button classification (0-1)"),
-  }),
+  buttonClassification: z
+    .object({
+      primaryButtonIndex: z
+        .number()
+        .describe(
+          "REQUIRED: Index of the primary CTA button in the provided list (0-based), or -1 if none found. YOU MUST RETURN THIS FIELD.",
+        ),
+      primaryButtonReasoning: z
+        .string()
+        .describe(
+          "REQUIRED: Why this button was selected as primary. YOU MUST RETURN THIS FIELD.",
+        ),
+      secondaryButtonIndex: z
+        .number()
+        .describe(
+          "REQUIRED: Index of the secondary button in the provided list (0-based), or -1 if none found. YOU MUST RETURN THIS FIELD.",
+        ),
+      secondaryButtonReasoning: z
+        .string()
+        .describe(
+          "REQUIRED: Why this button was selected as secondary. YOU MUST RETURN THIS FIELD.",
+        ),
+      confidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .describe(
+          "REQUIRED: Confidence in button classification (0-1). YOU MUST RETURN THIS FIELD.",
+        ),
+    })
+    .default({
+      primaryButtonIndex: -1,
+      primaryButtonReasoning: "LLM did not return button classification",
+      secondaryButtonIndex: -1,
+      secondaryButtonReasoning: "LLM did not return button classification",
+      confidence: 0,
+    }),
 
   // Color role clarification
-  colorRoles: z.object({
-    primaryColor: z.string().nullish().describe("Main brand color (hex)"),
-    accentColor: z.string().nullish().describe("Accent/CTA color (hex)"),
-    backgroundColor: z
-      .string()
-      .nullish()
-      .describe("Main background color (hex)"),
-    textPrimary: z.string().nullish().describe("Primary text color (hex)"),
-    confidence: z.number().min(0).max(1),
-  }),
+  colorRoles: z
+    .object({
+      primaryColor: z.string().nullish().describe("Main brand color (hex)"),
+      accentColor: z.string().nullish().describe("Accent/CTA color (hex)"),
+      backgroundColor: z
+        .string()
+        .nullish()
+        .describe("Main background color (hex)"),
+      textPrimary: z.string().nullish().describe("Primary text color (hex)"),
+      confidence: z.number().min(0).max(1),
+    })
+    .default({
+      primaryColor: null,
+      accentColor: null,
+      backgroundColor: null,
+      textPrimary: null,
+      confidence: 0,
+    }),
 
   // Brand personality
   personality: z
@@ -91,7 +113,8 @@ export const brandingEnhancementSchema = z.object({
     .max(5)
     .describe(
       "Top 5 cleaned fonts (remove obfuscation, fallbacks, generics, CSS vars)",
-    ),
+    )
+    .default([]),
 
   // Logo selection - LLM picks the best logo from candidates
   logoSelection: z
