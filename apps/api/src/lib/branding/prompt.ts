@@ -171,8 +171,13 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
   // Add logo candidates section (optimized - compact format)
   if (logoCandidates && logoCandidates.length > 0) {
     prompt += `\n## Logo Candidates (${logoCandidates.length}):\n`;
-    prompt += `**IMPORTANT**: Look at the screenshot provided. The brand logo is almost always in the TOP/HEADER area of the page.\n`;
-    prompt += `Find the logo in the header area of the screenshot, then match it to one of the candidates below.\n\n`;
+    if (input.screenshot) {
+      prompt += `**IMPORTANT**: Look at the screenshot provided. The brand logo is almost always in the TOP/HEADER area of the page.\n`;
+      prompt += `Find the logo in the header area of the screenshot, then match it to one of the candidates below.\n\n`;
+    } else {
+      prompt += `**IMPORTANT**: The brand logo is almost always in the TOP/HEADER area of the page.\n`;
+      prompt += `Find the logo in the header area (usually the top of the page), then match it to one of the candidates below.\n\n`;
+    }
 
     if (brandName) {
       prompt += `Brand Name: "${brandName}" - The logo should visually represent or contain this name.\n\n`;
@@ -199,13 +204,21 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
     });
 
     prompt += `\n**LOGO SELECTION - SIMPLE APPROACH:**\n`;
-    prompt += `Look at the screenshot and select the MOST PROMINENT primary brand logo.\n\n`;
+    if (input.screenshot) {
+      prompt += `Look at the screenshot and select the MOST PROMINENT primary brand logo.\n\n`;
+    } else {
+      prompt += `Select the MOST PROMINENT primary brand logo.\n\n`;
+    }
     prompt += `**Simple Rules:**\n`;
     prompt += `1. **Look at the TOP of the page** - The main logo is almost always in the header/navbar at the very top\n`;
     prompt += `2. **Primary logo** - Choose the largest, most visible logo that represents "${brandName || "the website's brand"}"\n`;
     prompt += `3. **Prefer header logos** - Logos in the header/navbar area are the brand logo (highest priority)\n`;
     prompt += `4. **Ignore partner/client logos** - Skip smaller logos in "customers", "partners", or footer sections\n`;
-    prompt += `5. **Use the screenshot** - Visually identify which logo is THE main brand logo users see first\n\n`;
+    if (input.screenshot) {
+      prompt += `5. **Use the screenshot** - Visually identify which logo is THE main brand logo users see first\n\n`;
+    } else {
+      prompt += `5. **Use visual indicators** - Identify which logo is THE main brand logo based on position, size, and indicators\n\n`;
+    }
     prompt += `**What to avoid:**\n`;
     prompt += `- Customer/client logos (usually smaller, in groups, different brand names)\n`;
     prompt += `- Social media icons\n`;
@@ -216,7 +229,11 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
   // Add background color candidates section
   if (backgroundCandidates && backgroundCandidates.length > 0) {
     prompt += `\n## Background Color Candidates (${backgroundCandidates.length}):\n`;
-    prompt += `Multiple background colors were detected. Use the screenshot to identify which is the actual page background:\n\n`;
+    if (input.screenshot) {
+      prompt += `Multiple background colors were detected. Use the screenshot to identify which is the actual page background:\n\n`;
+    } else {
+      prompt += `Multiple background colors were detected. Identify which is the actual page background:\n\n`;
+    }
 
     backgroundCandidates.forEach((candidate, idx) => {
       const areaInfo = candidate.area
@@ -225,9 +242,17 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
       prompt += `#${idx}: ${candidate.color} | source: ${candidate.source} | priority: ${candidate.priority}${areaInfo}\n`;
     });
 
-    prompt += `\n**Selection Rules:** Use the screenshot to visually identify the main page background. Consider:\n`;
-    prompt += `- Color scheme (dark mode should have dark background, light mode should have light background)\n`;
-    prompt += `- Most visible/largest area in the screenshot\n`;
+    prompt += `\n**Selection Rules:** `;
+    if (input.screenshot) {
+      prompt += `Use the screenshot to visually identify the main page background. Consider:\n`;
+      prompt += `- Color scheme (dark mode should have dark background, light mode should have light background)\n`;
+      prompt += `- Most visible/largest area in the screenshot\n`;
+    } else {
+      prompt += `Identify the main page background based on priority and source. Consider:\n`;
+      prompt += `- Color scheme (dark mode should have dark background, light mode should have light background)\n`;
+      prompt += `- Highest priority sources (body/html > CSS vars > containers)\n`;
+      prompt += `- Largest area coverage\n`;
+    }
     prompt += `- Higher priority sources (body/html > CSS vars > containers)\n`;
     prompt += `- Return the hex color in the colorRoles.backgroundColor field\n\n`;
   }
@@ -289,8 +314,13 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
     prompt += `   - **CRITICAL**: The logo MUST match the brand name "${brandName || "unknown"}" and look like a brand logo\n`;
     prompt += `   - **IT'S OK TO RETURN -1**: If no candidate is a good brand logo, return -1 with low confidence\n`;
     prompt += `   - **DECISION PROCESS**:\n`;
-    prompt += `     1. Look at the screenshot - find the logo in the HEADER/TOP area\n`;
-    prompt += `     2. Check which candidate matches that visual position and appearance\n`;
+    if (input.screenshot) {
+      prompt += `     1. Look at the screenshot - find the logo in the HEADER/TOP area\n`;
+      prompt += `     2. Check which candidate matches that visual position and appearance\n`;
+    } else {
+      prompt += `     1. Find the logo in the HEADER/TOP area based on candidate indicators\n`;
+      prompt += `     2. Check which candidate matches the expected position and appearance\n`;
+    }
     prompt += `     3. Verify the candidate has indicators: "header", "href=home", or "alt=logo"\n`;
     prompt += `     4. Verify it's NOT a UI icon (search, menu, cart, user, settings, etc.)\n`;
     prompt += `     5. If multiple candidates look similar, prefer the one with href="/" (homepage link)\n`;
