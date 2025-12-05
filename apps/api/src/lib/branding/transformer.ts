@@ -11,6 +11,7 @@ import {
   shouldUseLLMForLogoSelection,
   getTopCandidatesForLLM,
 } from "./logo-selector";
+import { calculateLogoArea } from "./types";
 
 export async function brandingTransformer(
   meta: Meta,
@@ -197,11 +198,8 @@ export async function brandingTransformer(
           const heuristicCandidate = logoCandidates[heuristicSelectedIndex];
 
           // Calculate logo sizes
-          const llmArea =
-            llmCandidate.position.width * llmCandidate.position.height;
-          const heuristicArea =
-            heuristicCandidate.position.width *
-            heuristicCandidate.position.height;
+          const llmArea = calculateLogoArea(llmCandidate.position);
+          const heuristicArea = calculateLogoArea(heuristicCandidate.position);
 
           // Red flags: LLM picked a logo that's objectively worse
           const llmIsWorse =

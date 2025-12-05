@@ -530,91 +530,107 @@ function extractInputSnapshots(
   });
 
   // Score and sort inputs
-  const scoredInputs = candidateInputs.map((input, idx) => {
-    let score = 0;
-    const meta = input.inputMetadata!;
+  const scoredInputs = candidateInputs
+    .map((input, idx) => {
+      if (!input.inputMetadata) return null;
 
-    // Prioritize by type
-    if (meta.type === "email") score += 100;
-    else if (meta.type === "text") score += 80;
-    else if (meta.type === "password") score += 70;
-    else if (meta.type === "search") score += 60;
-    else if (meta.type === "tel") score += 50;
-    else if (meta.type === "textarea") score += 40;
-    else if (meta.type === "select") score += 30;
+      let score = 0;
+      const meta = input.inputMetadata;
 
-    // Required fields are more important
-    if (meta.required) score += 50;
+      // Prioritize by type
+      if (meta.type === "email") score += 100;
+      else if (meta.type === "text") score += 80;
+      else if (meta.type === "password") score += 70;
+      else if (meta.type === "search") score += 60;
+      else if (meta.type === "tel") score += 50;
+      else if (meta.type === "textarea") score += 40;
+      else if (meta.type === "select") score += 30;
 
-    // Has placeholder or label
-    if (meta.placeholder) score += 30;
-    if (meta.label) score += 40;
+      // Required fields are more important
+      if (meta.required) score += 50;
 
-    // Common email/search field patterns
-    const allText =
-      `${meta.placeholder} ${meta.label} ${meta.name}`.toLowerCase();
-    if (allText.includes("email")) score += 80;
-    if (allText.includes("search")) score += 60;
-    if (allText.includes("password")) score += 50;
-    if (allText.includes("name")) score += 40;
+      // Has placeholder or label
+      if (meta.placeholder) score += 30;
+      if (meta.label) score += 40;
 
-    return { input, score, idx };
-  });
+      // Common email/search field patterns
+      const allText =
+        `${meta.placeholder} ${meta.label} ${meta.name}`.toLowerCase();
+      if (allText.includes("email")) score += 80;
+      if (allText.includes("search")) score += 60;
+      if (allText.includes("password")) score += 50;
+      if (allText.includes("name")) score += 40;
+
+      return { input, score, idx };
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        input: (typeof candidateInputs)[0];
+        score: number;
+        idx: number;
+      } => item !== null,
+    );
 
   scoredInputs.sort((a, b) => b.score - a.score);
 
   // Take top 20 inputs
   const topInputs = scoredInputs.slice(0, 20);
 
-  return topInputs.map(({ input }) => {
-    const meta = input.inputMetadata!;
-    // Hexify with the actual page background to respect light/dark mode
-    const bgHex = hexify(input.colors.background, raw.pageBackground);
-    const borderHex =
-      input.colors.borderWidth && input.colors.borderWidth > 0
-        ? hexify(input.colors.border, raw.pageBackground)
-        : null;
+  return topInputs
+    .map(({ input }) => {
+      if (!input.inputMetadata) return null;
 
-    const corners = {
-      topLeft:
-        input.borderRadius?.topLeft !== null &&
-        input.borderRadius?.topLeft !== undefined
-          ? `${input.borderRadius.topLeft}px`
-          : "0px",
-      topRight:
-        input.borderRadius?.topRight !== null &&
-        input.borderRadius?.topRight !== undefined
-          ? `${input.borderRadius.topRight}px`
-          : "0px",
-      bottomRight:
-        input.borderRadius?.bottomRight !== null &&
-        input.borderRadius?.bottomRight !== undefined
-          ? `${input.borderRadius.bottomRight}px`
-          : "0px",
-      bottomLeft:
-        input.borderRadius?.bottomLeft !== null &&
-        input.borderRadius?.bottomLeft !== undefined
-          ? `${input.borderRadius.bottomLeft}px`
-          : "0px",
-    };
+      const meta = input.inputMetadata;
+      // Hexify with the actual page background to respect light/dark mode
+      const bgHex = hexify(input.colors.background, raw.pageBackground);
+      const borderHex =
+        input.colors.borderWidth && input.colors.borderWidth > 0
+          ? hexify(input.colors.border, raw.pageBackground)
+          : null;
 
-    const representativeBorderRadius = calculateRepresentativeBorderRadius(
-      input.borderRadius,
-    );
+      const corners = {
+        topLeft:
+          input.borderRadius?.topLeft !== null &&
+          input.borderRadius?.topLeft !== undefined
+            ? `${input.borderRadius.topLeft}px`
+            : "0px",
+        topRight:
+          input.borderRadius?.topRight !== null &&
+          input.borderRadius?.topRight !== undefined
+            ? `${input.borderRadius.topRight}px`
+            : "0px",
+        bottomRight:
+          input.borderRadius?.bottomRight !== null &&
+          input.borderRadius?.bottomRight !== undefined
+            ? `${input.borderRadius.bottomRight}px`
+            : "0px",
+        bottomLeft:
+          input.borderRadius?.bottomLeft !== null &&
+          input.borderRadius?.bottomLeft !== undefined
+            ? `${input.borderRadius.bottomLeft}px`
+            : "0px",
+      };
 
-    return {
-      type: meta.type,
-      placeholder: meta.placeholder,
-      label: meta.label,
-      name: meta.name,
-      required: meta.required,
-      classes: input.classes,
-      background: bgHex || "transparent",
-      textColor: hexify(input.colors.text, raw.pageBackground),
-      borderColor: borderHex,
-      borderRadius: representativeBorderRadius,
-      borderRadiusCorners: corners,
-      shadow: input.shadow,
-    };
-  });
+      const representativeBorderRadius = calculateRepresentativeBorderRadius(
+        input.borderRadius,
+      );
+
+      return {
+        type: meta.type,
+        placeholder: meta.placeholder,
+        label: meta.label,
+        name: meta.name,
+        required: meta.required,
+        classes: input.classes,
+        background: bgHex || "transparent",
+        textColor: hexify(input.colors.text, raw.pageBackground),
+        borderColor: borderHex,
+        borderRadius: representativeBorderRadius,
+        borderRadiusCorners: corners,
+        shadow: input.shadow,
+      };
+    })
+    .filter(item => item !== null) as InputSnapshot[];
 }

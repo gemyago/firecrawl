@@ -1,4 +1,5 @@
 import { logger } from "../logger";
+import { calculateLogoArea } from "./types";
 
 interface LogoCandidate {
   src: string;
@@ -37,6 +38,17 @@ const CONFIDENCE_THRESHOLDS = {
   WEAK_CONFIDENCE: 0.4,
   LLM_THRESHOLD: 0.85,
 } as const;
+
+/**
+ * Safely extract filename from a URL (everything after the last "/")
+ */
+function extractFilename(src: string): string | null {
+  if (!src) return null;
+  const withoutQuery = src.split("?")[0];
+  const parts = withoutQuery.split("/");
+  const filename = parts.pop();
+  return filename || null;
+}
 
 /**
  * Calculate score for hrefMatch/inHeader indicators and no-link penalty
@@ -86,6 +98,9 @@ function detectLogoVariants(
     candidates.forEach((other, otherIndex) => {
       if (index === otherIndex || processed.has(otherIndex)) return;
 
+      const candidateFilename = extractFilename(candidate.src);
+      const otherFilename = extractFilename(other.src);
+
       const isSimilar =
         (candidate.alt &&
           other.alt &&
@@ -93,9 +108,10 @@ function detectLogoVariants(
             other.alt.toLowerCase().replace(/\s+/g, "")) ||
         // Same src (exact match or only differs by size/theme)
         candidate.src === other.src ||
-        (candidate.src.includes(other.src.split("?")[0].split("/").pop()!) &&
-          candidate.src.split("?")[0].split("/").pop() ===
-            other.src.split("?")[0].split("/").pop()) ||
+        (candidateFilename &&
+          otherFilename &&
+          candidate.src.includes(otherFilename) &&
+          candidateFilename === otherFilename) ||
         (Math.abs(candidate.position.top - other.position.top) < 20 &&
           Math.abs(candidate.position.left - other.position.left) < 50 &&
           Math.abs(candidate.position.width - other.position.width) < 30);
@@ -168,7 +184,10 @@ function detectRepeatedLogos(candidates: LogoCandidate[]): Set<number> {
     if (!srcGroups.has(srcKey)) {
       srcGroups.set(srcKey, []);
     }
-    srcGroups.get(srcKey)!.push(index);
+    const group = srcGroups.get(srcKey);
+    if (group) {
+      group.push(index);
+    }
   });
 
   // If a logo appears in different locations (header + footer), it's likely the brand logo
@@ -314,7 +333,7 @@ export function selectLogoWithConfidence(
       }
     }
 
-    const area = candidate.position.width * candidate.position.height;
+    const area = calculateLogoArea(candidate.position);
     const width = candidate.position.width;
     const height = candidate.position.height;
 

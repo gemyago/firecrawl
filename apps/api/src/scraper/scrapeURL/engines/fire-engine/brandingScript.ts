@@ -286,14 +286,11 @@ export const getBrandingScript = () => String.raw`
       100,
     );
     
-    const allLinks = document.querySelectorAll('a');
-    let linkCount = 0;
+    const allLinks = Array.from(document.querySelectorAll('a')).slice(0, 100);
     for (const link of allLinks) {
-      if (linkCount >= 100) break;
       if (!picksSet.has(link) && looksLikeButton(link)) {
         picksSet.add(link);
       }
-      linkCount++;
     }
     
     pushQ('input, select, textarea, [class*="form-control"]', 25);

@@ -172,3 +172,14 @@ export interface BrandingScriptReturn {
     area?: number;
   }>;
 }
+
+/**
+ * Calculate logo area from position dimensions
+ */
+export function calculateLogoArea(position?: {
+  width?: number;
+  height?: number;
+}): number {
+  if (!position) return 0;
+  return (position.width || 0) * (position.height || 0);
+}

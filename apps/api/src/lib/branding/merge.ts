@@ -1,6 +1,6 @@
 import { BrandingProfile } from "../../types/branding";
 import { BrandingEnhancement } from "./schema";
-import { ButtonSnapshot } from "./types";
+import { ButtonSnapshot, calculateLogoArea } from "./types";
 
 export function mergeBrandingResults(
   js: BrandingProfile,
@@ -120,9 +120,7 @@ export function mergeBrandingResults(
         // 1. Confidence is good (>= 0.5) OR
         // 2. Logo has very strong indicators (inHeader + hrefMatch + reasonable size)
         // AND no red flags
-        const area =
-          (selectedLogo.position?.width || 0) *
-          (selectedLogo.position?.height || 0);
+        const area = calculateLogoArea(selectedLogo.position);
         const hasReasonableSize = area >= 500 && area <= 100000;
         const hasStrongIndicators =
           selectedLogo.indicators?.inHeader &&
