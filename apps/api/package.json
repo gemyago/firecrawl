@@ -19,6 +19,8 @@
     "test:full": "jest --testPathIgnorePatterns=\"(src/__tests__/e2e_noAuth|src/__tests__/e2e_withAuth)\"",
     "test:prod": "jest --testPathIgnorePatterns=\"(src/__tests__/e2e_noAuth|src/__tests__/e2e_full_withAuth|src/scraper/scrapeURL)\"",
     "test:snips": "jest \"src/__tests__/snips/v[12]/.+\\.test\\.ts\"",
+    "test:branding-snapshot": "jest \"src/__tests__/snips/v2/branding-snapshot.test\\.ts\"",
+    "test:branding-snapshot:update": "jest \"src/__tests__/snips/v2/branding-snapshot.test\\.ts\" -u",
     "harness": "tsx src/harness.ts",
     "workers": "tsc-watch --onSuccess \"node --import ./dist/src/otel.js dist/src/services/queue-worker.js\"",
     "worker:production": "node --import ./dist/src/otel.js dist/src/services/queue-worker.js",

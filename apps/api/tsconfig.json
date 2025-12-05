@@ -11,6 +11,7 @@
     "sourceMap": true,
     "outDir": "./dist/src",
     "moduleResolution": "NodeNext",
+    "resolveJsonModule": true,
     "strictNullChecks": true,
 
     "inlineSources": true,
