@@ -225,13 +225,6 @@ export async function processEngpickerJob() {
     })),
   );
 
-  for (const result of results) {
-    console.log(result.url);
-    for (const r of result.results) {
-      console.log("\t" + r.engine + ": " + (r.result ? "SUCCESS" : "FAILURE"));
-    }
-  }
-
   // Transform results into format for native Levenshtein comparison
   const nativeInput: EngpickerUrlResult[] = results.map(result => {
     const cdpBasic = result.results.find(
@@ -271,23 +264,6 @@ export async function processEngpickerJob() {
     CDP_FAILURE_THRESHOLD,
   );
 
-  // Log individual URL verdicts
-  // console.log("\n=== URL Verdicts ===");
-  // for (const urlVerdict of verdictResult.urlVerdicts) {
-  //     const status = urlVerdict.cdpFailed
-  //         ? "? cdp failed"
-  //         : urlVerdict.tlsClientSufficient
-  //             ? "✓ tlsclient OK"
-  //             : "✗ chrome-cdp required";
-  //     console.log(`${urlVerdict.url}: ${status} (${urlVerdict.reason})`);
-  // }
-
-  // console.log(`\n=== Final Verdict ===`);
-  // console.log(`tlsclient OK: ${verdictResult.tlsClientOkCount}, chrome-cdp required: ${verdictResult.chromeCdpRequiredCount}, cdp failed: ${verdictResult.cdpFailedCount} (total: ${verdictResult.totalUrls})`);
-
-  // const verdictEmoji = verdictResult.verdict === "TlsClientOk" ? "✓" : verdictResult.verdict === "ChromeCdpRequired" ? "✗" : "?";
-  // console.log(`Verdict: ${verdictEmoji} ${verdictResult.verdict}`);
-
   // This is the verdict - "TlsClientOk", "ChromeCdpRequired", or "Uncertain"
   const verdict = verdictResult.verdict;
 
@@ -303,8 +279,6 @@ export async function processEngpickerJob() {
     await new Promise(resolve => setTimeout(resolve, 1000));
     return;
   }
-
-  // console.log(JSON.stringify(results, null, 2));
 
   const { error: updateJobError } = await index_supabase_service
     .from("engpicker_queue")

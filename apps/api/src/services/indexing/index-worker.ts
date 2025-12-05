@@ -774,9 +774,8 @@ const DOMAIN_FREQUENCY_INTERVAL = 10000;
     5 * 60 * 1000,
   );
 
-  const engpickerSignal = new AbortController();
   const engpickerPromise = (async () => {
-    while (!engpickerSignal.signal.aborted) {
+    while (!isShuttingDown) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       await processEngpickerJob();
     }
@@ -804,8 +803,6 @@ const DOMAIN_FREQUENCY_INTERVAL = 10000;
   }
 
   // Wait for all workers to complete (which should only happen on shutdown)
-  engpickerSignal.abort();
-
   await Promise.all([
     billingWorkerPromise,
     precrawlWorkerPromise,
