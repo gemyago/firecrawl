@@ -1,6 +1,7 @@
 import { generateObject } from "ai";
 import * as Sentry from "@sentry/node";
 import { logger } from "../logger";
+import { config } from "../../config";
 import { BrandingEnhancement, brandingEnhancementSchema } from "./schema";
 import { buildBrandingPrompt } from "./prompt";
 import { BrandingLLMInput } from "./types";
@@ -32,6 +33,26 @@ export async function enhanceBrandingWithLLM(
   const modelName = isComplexCase ? "gpt-4o" : "gpt-4o-mini";
   const model = getModel(modelName);
 
+  if (config.DEBUG_BRANDING === true) {
+    logger.info("LLM model selection", {
+      model: modelName,
+      buttonsCount,
+      logoCandidatesCount,
+      promptLength,
+      hasScreenshot: !!input.screenshot,
+      isComplexCase,
+    });
+
+    logger.debug("LLM branding prompt preview", {
+      promptStart: prompt.substring(0, 500),
+      promptEnd: prompt.substring(prompt.length - 500),
+      buttonsPreview: input.buttons?.slice(0, 3).map(b => ({
+        text: b.text?.substring(0, 50),
+        background: b.background,
+      })),
+    });
+  }
+
   try {
     const result = await generateObject({
       model,
@@ -61,6 +82,39 @@ export async function enhanceBrandingWithLLM(
         },
       },
     });
+
+    if (config.DEBUG_BRANDING === true) {
+      const reasoningPreview = result.reasoning
+        ? result.reasoning.length > 1000
+          ? result.reasoning.substring(0, 1000) + "..."
+          : result.reasoning
+        : undefined;
+
+      logger.info("LLM branding response", {
+        model: modelName,
+        buttonsCount,
+        logoCandidatesCount,
+        promptLength,
+        hasScreenshot: !!input.screenshot,
+        usage: result.usage,
+        finishReason: result.finishReason,
+        reasoning: reasoningPreview,
+        reasoningLength: result.reasoning?.length || 0,
+        warnings: result.warnings,
+        hasObject: !!result.object,
+        objectKeys: result.object ? Object.keys(result.object) : [],
+        buttonClassification: result.object?.buttonClassification,
+        colorRoles: result.object?.colorRoles,
+        cleanedFontsLength: result.object?.cleanedFonts?.length || 0,
+        logoSelection: result.object?.logoSelection,
+      });
+
+      if (result.reasoning && result.reasoning.length > 1000) {
+        logger.debug("LLM full reasoning", {
+          reasoning: result.reasoning,
+        });
+      }
+    }
 
     return result.object;
   } catch (error) {

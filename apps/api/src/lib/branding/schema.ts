@@ -75,7 +75,10 @@ export const brandingEnhancementSchema = z.object({
         ])
         .describe("Overall brand tone"),
       energy: z.enum(["low", "medium", "high"]).describe("Visual energy level"),
-      targetAudience: z.string().describe("Perceived target audience"),
+      targetAudience: z
+        .string()
+        .optional()
+        .describe("Perceived target audience"),
     })
     .optional(),
 
