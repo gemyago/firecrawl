@@ -71,6 +71,7 @@ export interface BrandingLLMInput {
   }>;
   screenshot?: string;
   url: string;
+  teamId?: string;
 }
 
 /**

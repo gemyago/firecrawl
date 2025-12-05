@@ -74,6 +74,7 @@ export async function brandingTransformer(
         backgroundCandidates.length > 0 ? backgroundCandidates : undefined,
       screenshot: document.screenshot,
       url: document.url || meta.url,
+      teamId: meta.internalOptions.teamId,
     });
 
     // Map LLM's filtered index back to original index
