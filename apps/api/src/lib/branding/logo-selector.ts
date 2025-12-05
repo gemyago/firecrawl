@@ -25,6 +25,49 @@ interface LogoSelectionResult {
   reasoning: string;
 }
 
+const CONFIDENCE_THRESHOLDS = {
+  STRONG_SCORE: 60,
+  GOOD_SCORE: 45,
+  MODERATE_SCORE: 30,
+  STRONG_SEPARATION: 20,
+  GOOD_SEPARATION: 15,
+  STRONG_CONFIDENCE: 0.9,
+  GOOD_CONFIDENCE: 0.75,
+  MODERATE_CONFIDENCE: 0.6,
+  WEAK_CONFIDENCE: 0.4,
+  LLM_THRESHOLD: 0.85,
+} as const;
+
+/**
+ * Calculate score for hrefMatch/inHeader indicators and no-link penalty
+ */
+function scoreHrefAndHeaderIndicators(candidate: LogoCandidate): {
+  score: number;
+  reasons: string[];
+} {
+  let score = 0;
+  const reasons: string[] = [];
+
+  if (candidate.indicators.hrefMatch && candidate.indicators.inHeader) {
+    score += 50;
+    reasons.push("header logo linking to homepage");
+  } else if (candidate.indicators.hrefMatch) {
+    score += 35;
+    reasons.push("links to homepage");
+  } else if (candidate.indicators.inHeader) {
+    score += 25;
+    reasons.push("in header");
+  }
+
+  // Penalty for no link at all - brand logos are usually clickable
+  if (!candidate.href || candidate.href.trim() === "") {
+    score -= 15;
+    reasons.push("no link (brand logos usually link to homepage, penalty)");
+  }
+
+  return { score, reasons };
+}
+
 /**
  * Detect logo variants - returns groups of similar logos
  */
@@ -207,22 +250,9 @@ export function selectLogoWithConfidence(
       reasons.push(`variant bonus (+${variantBonus})`);
     }
 
-    if (candidate.indicators.hrefMatch && candidate.indicators.inHeader) {
-      score += 50;
-      reasons.push("header logo linking to homepage");
-    } else if (candidate.indicators.hrefMatch) {
-      score += 35;
-      reasons.push("links to homepage");
-    } else if (candidate.indicators.inHeader) {
-      score += 25;
-      reasons.push("in header");
-    }
-
-    // Penalty for no link at all - brand logos are usually clickable
-    if (!candidate.href || candidate.href.trim() === "") {
-      score -= 15;
-      reasons.push("no link (brand logos usually link to homepage, penalty)");
-    }
+    const hrefHeaderScore = scoreHrefAndHeaderIndicators(candidate);
+    score += hrefHeaderScore.score;
+    reasons.push(...hrefHeaderScore.reasons);
 
     if (candidate.location === "header") {
       score += 20;
@@ -353,28 +383,34 @@ export function selectLogoWithConfidence(
 
   const scoreSeparation = secondBest ? top.score - secondBest.score : top.score;
 
-  if (top.score >= 60 && scoreSeparation >= 20) {
+  if (
+    top.score >= CONFIDENCE_THRESHOLDS.STRONG_SCORE &&
+    scoreSeparation >= CONFIDENCE_THRESHOLDS.STRONG_SEPARATION
+  ) {
     return {
       selectedIndex: top.index,
-      confidence: 0.9,
+      confidence: CONFIDENCE_THRESHOLDS.STRONG_CONFIDENCE,
       method: "heuristic",
       reasoning: `Strong indicators: ${top.reasons}. Score: ${top.score} (clear winner by ${scoreSeparation} points)`,
     };
   }
 
-  if (top.score >= 45 && scoreSeparation >= 15) {
+  if (
+    top.score >= CONFIDENCE_THRESHOLDS.GOOD_SCORE &&
+    scoreSeparation >= CONFIDENCE_THRESHOLDS.GOOD_SEPARATION
+  ) {
     return {
       selectedIndex: top.index,
-      confidence: 0.75,
+      confidence: CONFIDENCE_THRESHOLDS.GOOD_CONFIDENCE,
       method: "heuristic",
       reasoning: `Good indicators: ${top.reasons}. Score: ${top.score} (ahead by ${scoreSeparation} points)`,
     };
   }
 
-  if (top.score >= 30) {
+  if (top.score >= CONFIDENCE_THRESHOLDS.MODERATE_SCORE) {
     return {
       selectedIndex: top.index,
-      confidence: 0.6,
+      confidence: CONFIDENCE_THRESHOLDS.MODERATE_CONFIDENCE,
       method: "heuristic",
       reasoning: `Moderate indicators: ${top.reasons}. Score: ${top.score}. May benefit from LLM validation.`,
     };
@@ -382,7 +418,7 @@ export function selectLogoWithConfidence(
 
   return {
     selectedIndex: top.index,
-    confidence: 0.4,
+    confidence: CONFIDENCE_THRESHOLDS.WEAK_CONFIDENCE,
     method: "heuristic",
     reasoning: `Weak indicators: ${top.reasons}. Score: ${top.score}. LLM validation recommended (close scores: top=${top.score}, second=${secondBest?.score || 0})`,
   };
@@ -392,7 +428,7 @@ export function selectLogoWithConfidence(
  * Determine if LLM validation is needed based on heuristic confidence
  */
 export function shouldUseLLMForLogoSelection(confidence: number): boolean {
-  return confidence < 0.85;
+  return confidence < CONFIDENCE_THRESHOLDS.LLM_THRESHOLD;
 }
 
 /**
@@ -415,10 +451,8 @@ export function getTopCandidatesForLLM(
     let score = 0;
 
     // Strong indicators
-    if (candidate.indicators.hrefMatch && candidate.indicators.inHeader)
-      score += 50;
-    else if (candidate.indicators.hrefMatch) score += 35;
-    else if (candidate.indicators.inHeader) score += 25;
+    const hrefHeaderScore = scoreHrefAndHeaderIndicators(candidate);
+    score += hrefHeaderScore.score;
 
     // Location
     if (candidate.location === "header") score += 20;

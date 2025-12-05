@@ -19,6 +19,10 @@ export const getBrandingScript = () => String.raw`
     MIN_SIGNIFICANT_AREA: 1000,
     MIN_LARGE_CONTAINER_AREA: 10000,
     DUPLICATE_POSITION_THRESHOLD: 1,
+    MIN_LOGO_SIZE: 25,
+    MIN_ALPHA_THRESHOLD: 0.1,
+    MAX_TRANSPARENT_ALPHA: 0.01,
+    BUTTON_SELECTOR: 'button,input[type="submit"],input[type="button"],[role=button],[data-primary-button],[data-secondary-button],[data-cta],a.button,a.btn,[class*="btn"],[class*="button"],a[class*="bg-brand"],a[class*="bg-primary"],a[class*="bg-accent"]',
   };
 
   const styleCache = new WeakMap();
@@ -236,10 +240,10 @@ export const getBrandingScript = () => String.raw`
     return hasPadding && hasMinSize && (hasRounded || hasBorder);
   };
 
-  const looksLikeButton = (el) => {
+  const isButtonElement = (el) => {
     if (!el || typeof el.matches !== 'function') return false;
     
-    if (el.matches('button, [role=button], [data-primary-button], [data-secondary-button], [data-cta], a.button, a.btn, [class*="btn"], [class*="button"], a[class*="bg-brand"], a[class*="bg-primary"], a[class*="bg-accent"], a[type="button"]')) {
+    if (el.matches(CONSTANTS.BUTTON_SELECTOR)) {
       return true;
     }
     
@@ -248,15 +252,18 @@ export const getBrandingScript = () => String.raw`
         const classNames = getClassNameString(el).toLowerCase();
         const cs = getComputedStyleCached(el);
         const rect = el.getBoundingClientRect();
-        
         return checkButtonLikeElement(el, cs, rect, classNames);
       } catch (e) {
-        recordError('looksLikeButton', e);
+        recordError('isButtonElement', e);
         return false;
       }
     }
     
     return false;
+  };
+
+  const looksLikeButton = (el) => {
+    return isButtonElement(el);
   };
 
   const sampleElements = () => {
@@ -342,7 +349,7 @@ export const getBrandingScript = () => String.raw`
         if (parentBg && parentBg !== "transparent" && parentBg !== "rgba(0, 0, 0, 0)") {
           const parentAlphaMatch = parentBg.match(/rgba?\([^,]*,[^,]*,[^,]*,\s*([\d.]+)\)/);
           const parentAlpha = parentAlphaMatch ? parseFloat(parentAlphaMatch[1]) : 1;
-          if (parentAlpha > 0.1) {
+          if (parentAlpha > CONSTANTS.MIN_ALPHA_THRESHOLD) {
             bgColor = parentBg;
             break;
           }
@@ -352,14 +359,7 @@ export const getBrandingScript = () => String.raw`
       }
     }
 
-    let isButton = false;
-    if (el.matches('button,input[type="submit"],input[type="button"],[role=button],[data-primary-button],[data-secondary-button],[data-cta],a.button,a.btn,[class*="btn"],[class*="button"],a[class*="bg-brand"],a[class*="bg-primary"],a[class*="bg-accent"]')) {
-      isButton = true;
-    } else if (el.tagName.toLowerCase() === 'a') {
-      try {
-        isButton = checkButtonLikeElement(el, cs, rect, classNames);
-      } catch (e) {}
-    }
+    const isButton = isButtonElement(el);
 
     let isNavigation = false;
     let hasCTAIndicator = false;
@@ -841,9 +841,8 @@ export const getBrandingScript = () => String.raw`
         
         const candidateArea = candidate.position.width * candidate.position.height;
         const bestArea = best.position.width * best.position.height;
-        const minLogoSize = 25;
-        const candidateTooSmall = candidate.position.width < minLogoSize || candidate.position.height < minLogoSize;
-        const bestTooSmall = best.position.width < minLogoSize || best.position.height < minLogoSize;
+        const candidateTooSmall = candidate.position.width < CONSTANTS.MIN_LOGO_SIZE || candidate.position.height < CONSTANTS.MIN_LOGO_SIZE;
+        const bestTooSmall = best.position.width < CONSTANTS.MIN_LOGO_SIZE || best.position.height < CONSTANTS.MIN_LOGO_SIZE;
         
         if (candidateTooSmall && !bestTooSmall) return best;
         if (!candidateTooSmall && bestTooSmall) return candidate;
@@ -959,7 +958,7 @@ export const getBrandingScript = () => String.raw`
           const b = parseInt(match[3], 10);
           const alpha = match[4] ? parseFloat(match[4]) : 1;
           
-          if (alpha > 0.1) {
+          if (alpha > CONSTANTS.MIN_ALPHA_THRESHOLD) {
             return { r, g, b, alpha };
           }
         }
@@ -1050,7 +1049,7 @@ export const getBrandingScript = () => String.raw`
     const rgbaMatch = normalized.match(/rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*([\d.]+)\s*\)/);
     if (rgbaMatch) {
       const alpha = parseFloat(rgbaMatch[1]);
-      if (alpha < 0.01) {
+      if (alpha < CONSTANTS.MAX_TRANSPARENT_ALPHA) {
         return false;
       }
       return true;
