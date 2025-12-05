@@ -1,4 +1,5 @@
 import { processRawBranding } from "./processor";
+import { config } from "../../config";
 import { BrandingProfile } from "../../types/branding";
 import { enhanceBrandingWithLLM } from "./llm";
 import { Meta } from "../../scraper/scrapeURL";
@@ -316,9 +317,7 @@ export async function brandingTransformer(
     brandingProfile = jsBranding;
   }
 
-  // Keep logo selection reasoning in output (helpful for debugging)
-  // but remove button and input snapshots unless debug mode
-  if (process.env.DEBUG_BRANDING !== "true") {
+  if (config.DEBUG_BRANDING !== true) {
     delete (brandingProfile as any).__button_snapshots;
     delete (brandingProfile as any).__input_snapshots;
   }
