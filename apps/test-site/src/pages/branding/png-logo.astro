@@ -1,0 +1,141 @@
+---
+import BaseHead from '../../components/BaseHead.astro';
+import Footer from '../../components/Footer.astro';
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<BaseHead title="PNG Logo Branding Test" description="Test page with PNG logo and professional color scheme" />
+		<link rel="icon" type="image/png" href="/favicon.png" />
+		<style>
+			:root {
+				--primary: #1e40af;
+				--secondary: #7c3aed;
+				--accent: #10b981;
+				--background: #f8fafc;
+				--text-primary: #1e293b;
+				--text-secondary: #64748b;
+			}
+			body {
+				margin: 0;
+				padding: 0;
+				font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+				background: var(--background);
+				color: var(--text-primary);
+			}
+			header {
+				background: white;
+				padding: 2rem;
+				box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+			}
+			.logo-container {
+				display: flex;
+				align-items: center;
+				gap: 1rem;
+			}
+			.logo-container img {
+				height: 64px;
+				width: auto;
+			}
+			main {
+				max-width: 1200px;
+				margin: 0 auto;
+				padding: 3rem 2rem;
+			}
+			.hero {
+				background: white;
+				padding: 4rem 2rem;
+				border-radius: 16px;
+				margin-bottom: 3rem;
+				text-align: center;
+				border: 1px solid #e2e8f0;
+			}
+			.hero h1 {
+				font-size: 2.5rem;
+				margin: 0 0 1rem 0;
+				font-weight: 700;
+				color: var(--primary);
+			}
+			.button-primary {
+				background: var(--primary);
+				color: white;
+				padding: 0.875rem 1.75rem;
+				border: none;
+				border-radius: 6px;
+				font-size: 0.9375rem;
+				font-weight: 500;
+				cursor: pointer;
+				transition: all 0.2s ease;
+			}
+			.button-primary:hover {
+				background: #1e3a8a;
+				box-shadow: 0 4px 6px rgba(30, 64, 175, 0.25);
+			}
+			.button-secondary {
+				background: white;
+				color: var(--primary);
+				padding: 0.875rem 1.75rem;
+				border: 1px solid var(--primary);
+				border-radius: 6px;
+				font-size: 0.9375rem;
+				font-weight: 500;
+				cursor: pointer;
+				transition: all 0.2s ease;
+			}
+			.button-secondary:hover {
+				background: var(--primary);
+				color: white;
+			}
+			.content-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+				gap: 2rem;
+				margin-top: 3rem;
+			}
+			.card {
+				background: white;
+				padding: 2rem;
+				border-radius: 12px;
+				box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+				border-left: 4px solid var(--secondary);
+			}
+			.card h3 {
+				color: var(--primary);
+				margin-top: 0;
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<div class="logo-container">
+				<img src="/firecrawl-logo.png" alt="Firecrawl Logo" />
+				<h1 style="margin: 0; color: var(--primary);">PNG Logo Branding</h1>
+			</div>
+		</header>
+		<main>
+			<div class="hero">
+				<h1>Professional & Clean Design</h1>
+				<p style="font-size: 1.125rem; margin-bottom: 2rem; color: var(--text-secondary);">This page features a PNG logo with a professional color scheme and clean typography.</p>
+				<button class="button-primary">Get Started</button>
+				<button class="button-secondary" style="margin-left: 1rem;">Learn More</button>
+			</div>
+			<div class="content-grid">
+				<div class="card">
+					<h3>Deep Blue Primary</h3>
+					<p>The primary brand color is <strong style="color: var(--primary);">#1e40af</strong>, a deep blue that conveys trust and professionalism.</p>
+				</div>
+				<div class="card">
+					<h3>Purple Secondary</h3>
+					<p>The secondary color is <strong style="color: var(--secondary);">#7c3aed</strong>, a rich purple that adds creativity to the palette.</p>
+				</div>
+				<div class="card">
+					<h3>Green Accent</h3>
+					<p>The accent color is <strong style="color: var(--accent);">#10b981</strong>, a vibrant green that represents growth and success.</p>
+				</div>
+			</div>
+		</main>
+		<Footer />
+	</body>
+</html>
+

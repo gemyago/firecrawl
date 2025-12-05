@@ -1,0 +1,160 @@
+---
+import BaseHead from '../../components/BaseHead.astro';
+import Footer from '../../components/Footer.astro';
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<BaseHead title="Dark Theme with Transparency Test" description="Test page with dark theme and transparent elements" />
+		<link rel="icon" type="image/png" href="/favicon.png" />
+		<style>
+			:root {
+				--primary: #8b5cf6;
+				--secondary: #06b6d4;
+				--accent: #f59e0b;
+				--background: #0f172a;
+				--surface: rgba(30, 41, 59, 0.6);
+				--text-primary: #f1f5f9;
+				--text-secondary: #94a3b8;
+			}
+			body {
+				margin: 0;
+				padding: 0;
+				font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+				background: var(--background);
+				color: var(--text-primary);
+				background-image: 
+					radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+					radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.15) 0%, transparent 50%);
+			}
+			header {
+				background: var(--surface);
+				backdrop-filter: blur(10px);
+				padding: 2rem;
+				border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+			}
+			.logo-container {
+				display: flex;
+				align-items: center;
+				gap: 1rem;
+			}
+			.logo-container img {
+				height: 64px;
+				width: auto;
+				opacity: 0.9;
+			}
+			main {
+				max-width: 1200px;
+				margin: 0 auto;
+				padding: 3rem 2rem;
+			}
+			.hero {
+				background: var(--surface);
+				backdrop-filter: blur(20px);
+				padding: 4rem 2rem;
+				border-radius: 24px;
+				margin-bottom: 3rem;
+				text-align: center;
+				border: 1px solid rgba(255, 255, 255, 0.1);
+			}
+			.hero h1 {
+				font-size: 3rem;
+				margin: 0 0 1rem 0;
+				font-weight: 700;
+				background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+				-webkit-background-clip: text;
+				-webkit-text-fill-color: transparent;
+				background-clip: text;
+			}
+			.button-primary {
+				background: var(--primary);
+				color: white;
+				padding: 1rem 2rem;
+				border: none;
+				border-radius: 12px;
+				font-size: 1rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition: all 0.2s ease;
+				box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+			}
+			.button-primary:hover {
+				background: #7c3aed;
+				transform: translateY(-2px);
+				box-shadow: 0 6px 16px rgba(139, 92, 246, 0.5);
+			}
+			.button-secondary {
+				background: rgba(255, 255, 255, 0.1);
+				color: var(--text-primary);
+				padding: 1rem 2rem;
+				border: 1px solid rgba(255, 255, 255, 0.2);
+				border-radius: 12px;
+				font-size: 1rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition: all 0.2s ease;
+				backdrop-filter: blur(10px);
+			}
+			.button-secondary:hover {
+				background: rgba(255, 255, 255, 0.15);
+				border-color: rgba(255, 255, 255, 0.3);
+			}
+			.content-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+				gap: 2rem;
+				margin-top: 3rem;
+			}
+			.card {
+				background: var(--surface);
+				backdrop-filter: blur(10px);
+				padding: 2rem;
+				border-radius: 16px;
+				border: 1px solid rgba(255, 255, 255, 0.1);
+				box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+			}
+			.card h3 {
+				color: var(--primary);
+				margin-top: 0;
+			}
+			.glass-effect {
+				background: rgba(255, 255, 255, 0.05);
+				backdrop-filter: blur(10px);
+				border: 1px solid rgba(255, 255, 255, 0.1);
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<div class="logo-container">
+				<img src="/firecrawl-logo.png" alt="Firecrawl Logo" style="filter: brightness(0) invert(1);" />
+				<h1 style="margin: 0; color: var(--text-primary);">Dark & Transparent</h1>
+			</div>
+		</header>
+		<main>
+			<div class="hero">
+				<h1>Dark Theme with Transparency</h1>
+				<p style="font-size: 1.25rem; margin-bottom: 2rem; color: var(--text-secondary);">This page features a dark theme with transparent elements, glassmorphism effects, and backdrop filters.</p>
+				<button class="button-primary">Explore</button>
+				<button class="button-secondary" style="margin-left: 1rem;">Learn More</button>
+			</div>
+			<div class="content-grid">
+				<div class="card">
+					<h3>Purple Primary</h3>
+					<p>The primary brand color is <strong style="color: var(--primary);">#8b5cf6</strong>, a vibrant purple that stands out on dark backgrounds.</p>
+				</div>
+				<div class="card">
+					<h3>Cyan Secondary</h3>
+					<p>The secondary color is <strong style="color: var(--secondary);">#06b6d4</strong>, a bright cyan that creates contrast.</p>
+				</div>
+				<div class="card">
+					<h3>Amber Accent</h3>
+					<p>The accent color is <strong style="color: var(--accent);">#f59e0b</strong>, a warm amber that adds warmth to the dark theme.</p>
+				</div>
+			</div>
+		</main>
+		<Footer />
+	</body>
+</html>
+

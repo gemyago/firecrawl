@@ -1,0 +1,234 @@
+---
+import BaseHead from '../../components/BaseHead.astro';
+import Footer from '../../components/Footer.astro';
+import firecrawlLogo from '../../assets/firecrawl-logo.svg';
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<BaseHead title="Complex Branding Test" description="Test page with complex branding including gradients, multiple colors, and varied typography" />
+		<link rel="icon" type="image/png" href="/favicon.png" />
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
+		<style>
+			:root {
+				--primary: #e11d48;
+				--secondary: #3b82f6;
+				--accent: #f59e0b;
+				--success: #10b981;
+				--warning: #f59e0b;
+				--error: #ef4444;
+				--background: #fafafa;
+				--text-primary: #1f2937;
+				--text-secondary: #6b7280;
+			}
+			body {
+				margin: 0;
+				padding: 0;
+				font-family: 'Source Sans Pro', sans-serif;
+				background: var(--background);
+				color: var(--text-primary);
+			}
+			header {
+				background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 50%, var(--accent) 100%);
+				padding: 2rem;
+				box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+			}
+			.logo-container {
+				display: flex;
+				align-items: center;
+				gap: 1rem;
+			}
+			.logo-container img {
+				height: 64px;
+				width: auto;
+				filter: brightness(0) invert(1);
+			}
+			.logo-container h1 {
+				font-family: 'Playfair Display', serif;
+				font-size: 2.5rem;
+				margin: 0;
+				color: white;
+				font-weight: 700;
+			}
+			main {
+				max-width: 1400px;
+				margin: 0 auto;
+				padding: 3rem 2rem;
+			}
+			.hero {
+				background: linear-gradient(135deg, rgba(225, 29, 72, 0.1) 0%, rgba(59, 130, 246, 0.1) 50%, rgba(245, 158, 11, 0.1) 100%);
+				padding: 5rem 3rem;
+				border-radius: 24px;
+				margin-bottom: 3rem;
+				text-align: center;
+				border: 2px solid;
+				border-image: linear-gradient(135deg, var(--primary), var(--secondary), var(--accent)) 1;
+			}
+			.hero h1 {
+				font-family: 'Playfair Display', serif;
+				font-size: 4rem;
+				margin: 0 0 1rem 0;
+				font-weight: 700;
+				background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 50%, var(--accent) 100%);
+				-webkit-background-clip: text;
+				-webkit-text-fill-color: transparent;
+				background-clip: text;
+			}
+			.button-primary {
+				background: linear-gradient(135deg, var(--primary) 0%, #c81e3a 100%);
+				color: white;
+				padding: 1.125rem 2.25rem;
+				border: none;
+				border-radius: 12px;
+				font-size: 1.0625rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition: all 0.3s ease;
+				box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);
+			}
+			.button-primary:hover {
+				transform: translateY(-2px);
+				box-shadow: 0 6px 16px rgba(225, 29, 72, 0.4);
+			}
+			.button-secondary {
+				background: linear-gradient(135deg, var(--secondary) 0%, #2563eb 100%);
+				color: white;
+				padding: 1.125rem 2.25rem;
+				border: none;
+				border-radius: 12px;
+				font-size: 1.0625rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition: all 0.3s ease;
+				box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+			}
+			.button-secondary:hover {
+				transform: translateY(-2px);
+				box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+			}
+			.button-accent {
+				background: linear-gradient(135deg, var(--accent) 0%, #d97706 100%);
+				color: white;
+				padding: 1.125rem 2.25rem;
+				border: none;
+				border-radius: 12px;
+				font-size: 1.0625rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition: all 0.3s ease;
+				box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+			}
+			.button-accent:hover {
+				transform: translateY(-2px);
+				box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
+			}
+			.content-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+				gap: 2rem;
+				margin-top: 3rem;
+			}
+			.card {
+				background: white;
+				padding: 2.5rem;
+				border-radius: 16px;
+				box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+				border-top: 4px solid;
+				transition: all 0.3s ease;
+			}
+			.card:hover {
+				transform: translateY(-4px);
+				box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+			}
+			.card-primary {
+				border-top-color: var(--primary);
+			}
+			.card-secondary {
+				border-top-color: var(--secondary);
+			}
+			.card-accent {
+				border-top-color: var(--accent);
+			}
+			.card-success {
+				border-top-color: var(--success);
+			}
+			.card h3 {
+				font-family: 'Playfair Display', serif;
+				font-size: 1.75rem;
+				margin-top: 0;
+				font-weight: 700;
+			}
+			.card-primary h3 {
+				color: var(--primary);
+			}
+			.card-secondary h3 {
+				color: var(--secondary);
+			}
+			.card-accent h3 {
+				color: var(--accent);
+			}
+			.card-success h3 {
+				color: var(--success);
+			}
+			.input-field {
+				width: 100%;
+				padding: 0.875rem 1rem;
+				border: 2px solid #e5e7eb;
+				border-radius: 8px;
+				font-size: 1rem;
+				font-family: 'Source Sans Pro', sans-serif;
+				transition: all 0.2s ease;
+				margin-top: 1rem;
+			}
+			.input-field:focus {
+				outline: none;
+				border-color: var(--primary);
+				box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1);
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<div class="logo-container">
+				<img src={firecrawlLogo.src} alt="Firecrawl Logo" />
+				<h1>Complex Branding</h1>
+			</div>
+		</header>
+		<main>
+			<div class="hero">
+				<h1>Complex Multi-Color Design</h1>
+				<p style="font-size: 1.25rem; margin-bottom: 2rem; color: var(--text-secondary);">This page features complex branding with gradients, multiple colors, varied typography, and diverse component styles.</p>
+				<button class="button-primary">Primary Action</button>
+				<button class="button-secondary" style="margin-left: 1rem;">Secondary Action</button>
+				<button class="button-accent" style="margin-left: 1rem;">Accent Action</button>
+			</div>
+			<div class="content-grid">
+				<div class="card card-primary">
+					<h3>Rose Primary</h3>
+					<p>The primary brand color is <strong style="color: var(--primary);">#e11d48</strong>, a vibrant rose that represents passion and energy.</p>
+					<input type="text" class="input-field" placeholder="Primary input field" />
+				</div>
+				<div class="card card-secondary">
+					<h3>Blue Secondary</h3>
+					<p>The secondary color is <strong style="color: var(--secondary);">#3b82f6</strong>, a professional blue that conveys trust.</p>
+					<input type="text" class="input-field" placeholder="Secondary input field" />
+				</div>
+				<div class="card card-accent">
+					<h3>Amber Accent</h3>
+					<p>The accent color is <strong style="color: var(--accent);">#f59e0b</strong>, a warm amber that adds warmth.</p>
+					<input type="text" class="input-field" placeholder="Accent input field" />
+				</div>
+				<div class="card card-success">
+					<h3>Green Success</h3>
+					<p>The success color is <strong style="color: var(--success);">#10b981</strong>, a vibrant green for positive actions.</p>
+					<input type="text" class="input-field" placeholder="Success input field" />
+				</div>
+			</div>
+		</main>
+		<Footer />
+	</body>
+</html>
+

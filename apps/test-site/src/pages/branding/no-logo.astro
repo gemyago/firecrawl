@@ -1,0 +1,139 @@
+---
+import BaseHead from '../../components/BaseHead.astro';
+import Footer from '../../components/Footer.astro';
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<BaseHead title="No Logo Branding Test" description="Test page with text-only branding, no logo" />
+		<link rel="icon" type="image/png" href="/favicon.png" />
+		<style>
+			:root {
+				--primary: #dc2626;
+				--secondary: #ea580c;
+				--accent: #fbbf24;
+				--background: #ffffff;
+				--text-primary: #111827;
+				--text-secondary: #6b7280;
+			}
+			body {
+				margin: 0;
+				padding: 0;
+				font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+				background: var(--background);
+				color: var(--text-primary);
+			}
+			header {
+				background: var(--background);
+				padding: 2rem;
+				border-bottom: 3px solid var(--primary);
+			}
+			.brand-text {
+				font-size: 2rem;
+				font-weight: 700;
+				color: var(--primary);
+				letter-spacing: -0.02em;
+				margin: 0;
+			}
+			main {
+				max-width: 1200px;
+				margin: 0 auto;
+				padding: 3rem 2rem;
+			}
+			.hero {
+				background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 100%);
+				color: white;
+				padding: 5rem 2rem;
+				border-radius: 20px;
+				margin-bottom: 3rem;
+				text-align: center;
+			}
+			.hero h1 {
+				font-size: 3.5rem;
+				margin: 0 0 1rem 0;
+				font-weight: 800;
+				letter-spacing: -0.03em;
+			}
+			.button-primary {
+				background: white;
+				color: var(--primary);
+				padding: 1.125rem 2.25rem;
+				border: none;
+				border-radius: 10px;
+				font-size: 1.0625rem;
+				font-weight: 700;
+				cursor: pointer;
+				transition: all 0.2s ease;
+				box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+			}
+			.button-primary:hover {
+				transform: translateY(-2px);
+				box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+			}
+			.button-secondary {
+				background: transparent;
+				color: white;
+				padding: 1.125rem 2.25rem;
+				border: 2px solid white;
+				border-radius: 10px;
+				font-size: 1.0625rem;
+				font-weight: 700;
+				cursor: pointer;
+				transition: all 0.2s ease;
+			}
+			.button-secondary:hover {
+				background: white;
+				color: var(--primary);
+			}
+			.content-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+				gap: 2rem;
+				margin-top: 3rem;
+			}
+			.card {
+				background: white;
+				padding: 2.5rem;
+				border-radius: 12px;
+				box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+				border: 2px solid #f3f4f6;
+			}
+			.card h3 {
+				color: var(--primary);
+				margin-top: 0;
+				font-size: 1.5rem;
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1 class="brand-text">TEXTBRAND</h1>
+			<p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Text-Only Branding Example</p>
+		</header>
+		<main>
+			<div class="hero">
+				<h1>No Logo, Pure Typography</h1>
+				<p style="font-size: 1.25rem; margin-bottom: 2rem; opacity: 0.95;">This page demonstrates branding without a logo, relying solely on typography and color.</p>
+				<button class="button-primary">Start Now</button>
+				<button class="button-secondary" style="margin-left: 1rem;">Explore</button>
+			</div>
+			<div class="content-grid">
+				<div class="card">
+					<h3>Red Primary</h3>
+					<p>The primary brand color is <strong style="color: var(--primary);">#dc2626</strong>, a bold red that commands attention.</p>
+				</div>
+				<div class="card">
+					<h3>Orange Secondary</h3>
+					<p>The secondary color is <strong style="color: var(--secondary);">#ea580c</strong>, a warm orange that complements the red.</p>
+				</div>
+				<div class="card">
+					<h3>Yellow Accent</h3>
+					<p>The accent color is <strong style="color: var(--accent);">#fbbf24</strong>, a bright yellow that adds energy.</p>
+				</div>
+			</div>
+		</main>
+		<Footer />
+	</body>
+</html>
+

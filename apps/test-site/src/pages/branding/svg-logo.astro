@@ -1,0 +1,142 @@
+---
+import BaseHead from '../../components/BaseHead.astro';
+import Footer from '../../components/Footer.astro';
+import firecrawlLogo from '../../assets/firecrawl-logo.svg';
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<BaseHead title="SVG Logo Branding Test" description="Test page with SVG logo and bright colors" />
+		<link rel="icon" type="image/png" href="/favicon.png" />
+		<style>
+			:root {
+				--primary: #fa5d19;
+				--secondary: #3b82f6;
+				--accent: #f59e0b;
+				--background: #ffffff;
+				--text-primary: #262626;
+				--text-secondary: #666666;
+			}
+			body {
+				margin: 0;
+				padding: 0;
+				font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+				background: var(--background);
+				color: var(--text-primary);
+			}
+			header {
+				background: var(--background);
+				padding: 2rem;
+				border-bottom: 2px solid var(--primary);
+			}
+			.logo-container {
+				display: flex;
+				align-items: center;
+				gap: 1rem;
+			}
+			.logo-container img {
+				height: 64px;
+				width: auto;
+			}
+			main {
+				max-width: 1200px;
+				margin: 0 auto;
+				padding: 3rem 2rem;
+			}
+			.hero {
+				background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+				color: white;
+				padding: 4rem 2rem;
+				border-radius: 12px;
+				margin-bottom: 3rem;
+				text-align: center;
+			}
+			.hero h1 {
+				font-size: 3rem;
+				margin: 0 0 1rem 0;
+				font-weight: 700;
+			}
+			.button-primary {
+				background: var(--primary);
+				color: white;
+				padding: 1rem 2rem;
+				border: none;
+				border-radius: 8px;
+				font-size: 1rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition: all 0.2s ease;
+			}
+			.button-primary:hover {
+				background: #e54d0f;
+				transform: translateY(-2px);
+				box-shadow: 0 4px 12px rgba(250, 93, 25, 0.3);
+			}
+			.button-secondary {
+				background: transparent;
+				color: var(--primary);
+				padding: 1rem 2rem;
+				border: 2px solid var(--primary);
+				border-radius: 8px;
+				font-size: 1rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition: all 0.2s ease;
+			}
+			.button-secondary:hover {
+				background: var(--primary);
+				color: white;
+			}
+			.content-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+				gap: 2rem;
+				margin-top: 3rem;
+			}
+			.card {
+				background: white;
+				padding: 2rem;
+				border-radius: 8px;
+				box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+				border-top: 4px solid var(--accent);
+			}
+			.card h3 {
+				color: var(--primary);
+				margin-top: 0;
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<div class="logo-container">
+				<img src={firecrawlLogo.src} alt="Firecrawl Logo" />
+				<h1 style="margin: 0; color: var(--primary);">SVG Logo Branding</h1>
+			</div>
+		</header>
+		<main>
+			<div class="hero">
+				<h1>Bright & Vibrant Design</h1>
+				<p style="font-size: 1.25rem; margin-bottom: 2rem;">This page features an SVG logo with bright, vibrant colors and a light theme.</p>
+				<button class="button-primary">Primary Action</button>
+				<button class="button-secondary" style="margin-left: 1rem;">Secondary Action</button>
+			</div>
+			<div class="content-grid">
+				<div class="card">
+					<h3>Primary Color</h3>
+					<p>The primary brand color is <strong style="color: var(--primary);">#fa5d19</strong>, a vibrant orange that represents energy and innovation.</p>
+				</div>
+				<div class="card">
+					<h3>Secondary Color</h3>
+					<p>The secondary color is <strong style="color: var(--secondary);">#3b82f6</strong>, a professional blue that complements the primary orange.</p>
+				</div>
+				<div class="card">
+					<h3>Accent Color</h3>
+					<p>The accent color is <strong style="color: var(--accent);">#f59e0b</strong>, a warm amber that adds depth to the color palette.</p>
+				</div>
+			</div>
+		</main>
+		<Footer />
+	</body>
+</html>
+
