@@ -1205,9 +1205,8 @@ class NuQ<JobData = any, JobReturnValue = any> {
           );
           if (job !== false) {
             return this.rowToJob(JSON.parse(job.content.toString()));
-          } else {
-            return null;
           }
+          // No message in RabbitMQ prefetch queue, fall through to Postgres query
         } else {
           logger.warn("NuQ sender not started, falling back to postgres", {
             module: "nuq/rabbitmq",
