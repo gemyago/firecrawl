@@ -347,10 +347,13 @@ export interface DocumentMetadata {
   scrapeId?: string;
   numPages?: number;
   contentType?: string;
+  timezone?: string;
   proxyUsed?: 'basic' | 'stealth';
   cacheState?: 'hit' | 'miss';
   cachedAt?: string;
   creditsUsed?: number;
+  concurrencyLimited?: boolean;
+  concurrencyQueueDurationMs?: number;
 
   // Error information
   error?: string;

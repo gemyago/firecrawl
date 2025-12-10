@@ -49,7 +49,7 @@ export async function batchScrapeController(
   }
 
   const zeroDataRetention =
-    req.acuc?.flags?.forceZDR ?? req.body.zeroDataRetention ?? false;
+    req.acuc?.flags?.forceZDR || (req.body.zeroDataRetention ?? false);
 
   const id = req.body.appendToId ?? uuidv7();
   const logger = _logger.child({
@@ -122,6 +122,7 @@ export async function batchScrapeController(
       integration: req.body.integration,
       target_hint: urls[0] ?? "",
       zeroDataRetention: zeroDataRetention || false,
+      api_key_id: req.acuc?.api_key_id ?? null,
     });
   }
 

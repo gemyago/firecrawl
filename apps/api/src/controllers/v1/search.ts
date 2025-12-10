@@ -93,7 +93,7 @@ async function scrapeSearchResult(
 
   const costTracking = new CostTracking();
 
-  const zeroDataRetention = flags?.forceZDR ?? false;
+  const zeroDataRetention = flags?.forceZDR || false;
 
   try {
     if (isUrlBlocked(searchResult.url, flags)) {
@@ -281,6 +281,7 @@ export async function searchController(
       integration: req.body.integration,
       target_hint: req.body.query,
       zeroDataRetention: false, // not supported for search
+      api_key_id: req.acuc?.api_key_id ?? null,
     });
 
     let limit = req.body.limit;

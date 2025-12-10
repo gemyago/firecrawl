@@ -552,6 +552,7 @@ const baseScrapeOptions = z.strictObject({
   __searchPreviewToken: z.string().optional(),
   __experimental_omce: z.boolean().prefault(false).optional(),
   __experimental_omceDomain: z.string().optional(),
+  __experimental_engpicker: z.boolean().prefault(false).optional(),
 });
 
 type ScrapeOptionsBase = z.infer<typeof baseScrapeOptions>;
@@ -794,7 +795,7 @@ export type BatchScrapeRequestInput = Omit<
   zeroDataRetention?: boolean;
 };
 
-const crawlerOptions = z.strictObject({
+export const crawlerOptions = z.strictObject({
   includePaths: z.string().array().prefault([]),
   excludePaths: z.string().array().prefault([]),
   maxDiscoveryDepth: z.number().optional(),
@@ -983,6 +984,7 @@ export type Document = {
     error?: string;
     numPages?: number;
     contentType?: string;
+    timezone?: string;
     proxyUsed: "basic" | "stealth";
     cacheState?: "hit" | "miss";
     cachedAt?: string;

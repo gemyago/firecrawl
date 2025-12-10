@@ -122,7 +122,7 @@ export async function getMapResults({
   let links: string[] = [url];
   let mapResults: MapDocument[] = [];
 
-  const zeroDataRetention = flags?.forceZDR ?? false;
+  const zeroDataRetention = flags?.forceZDR || false;
 
   const sc: StoredCrawl = {
     originUrl: url,
@@ -397,6 +397,7 @@ export async function mapController(
     integration: req.body.integration,
     target_hint: req.body.url,
     zeroDataRetention: false, // not supported for map
+    api_key_id: req.acuc?.api_key_id ?? null,
   });
 
   let result: Awaited<ReturnType<typeof getMapResults>>;
