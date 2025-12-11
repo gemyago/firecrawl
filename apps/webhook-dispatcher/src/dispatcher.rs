@@ -3,7 +3,6 @@ use crate::signature::sign_payload;
 use anyhow::{Context, Result};
 use postgrest::Postgrest;
 use reqwest::{header, Client};
-use std::net::IpAddr;
 use std::time::Duration;
 use tracing::{error, info, instrument, warn};
 use url::Url;
@@ -17,21 +16,6 @@ pub enum DispatchResult {
     Success,
     FatalError,
     RetryableError,
-}
-
-fn is_private_ip(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(ip) => {
-            ip.is_private()
-                || ip.is_loopback()
-                || ip.is_link_local()
-                || ip.is_unspecified()
-                || ip.is_documentation()
-        }
-        IpAddr::V6(ip) => {
-            ip.is_loopback() || ip.is_unspecified() || ip.is_unique_local() || ip.is_multicast()
-        }
-    }
 }
 
 impl WebhookDispatcher {
@@ -110,11 +94,11 @@ impl WebhookDispatcher {
             }
         };
 
-        let target_addr = match addrs.into_iter().find(|addr| !is_private_ip(addr.ip())) {
+        let target_addr = match addrs.into_iter().find(|addr| addr.ip().is_global()) {
             Some(addr) => addr,
             None => {
-                warn!(host = %host, "Webhook URL resolved to private/blocked IP");
-                self.log_failure(message, None, "Resolved to private/blocked IP".into())
+                warn!(host = %host, "Webhook URL resolved to non-global IP");
+                self.log_failure(message, None, "Resolved to non-global IP".into())
                     .await?;
                 return Ok(DispatchResult::FatalError);
             }
@@ -128,7 +112,10 @@ impl WebhookDispatcher {
 
         let payload_json = serde_json::to_string(&message.payload)?;
         let mut headers = header::HeaderMap::new();
-        headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("application/json"),
+        );
 
         for (k, v) in &message.headers {
             if let (Ok(n), Ok(val)) = (
@@ -140,8 +127,10 @@ impl WebhookDispatcher {
         }
 
         if let Some(secret) = hmac_secret {
-            if let Ok(sig) = header::HeaderValue::from_str(&sign_payload(&secret, &payload_json)) {
-                headers.insert("X-Firecrawl-Signature", sig);
+            if let Ok(signature) = sign_payload(&secret, &payload_json) {
+                if let Ok(sig_value) = header::HeaderValue::from_str(&signature) {
+                    headers.insert("X-Firecrawl-Signature", sig_value);
+                }
             }
         }
 

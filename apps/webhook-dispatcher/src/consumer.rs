@@ -145,12 +145,15 @@ async fn handle_result(
         }
         Ok((delivery, Err(e))) => {
             error!(tag = delivery.delivery_tag, error = %e, "Processing failed, requeueing");
-            let _ = delivery
+            if let Err(nack_err) = delivery
                 .nack(BasicNackOptions {
                     multiple: false,
                     requeue: true,
                 })
-                .await;
+                .await
+            {
+                error!(tag = delivery.delivery_tag, error = %nack_err, "Nack failed");
+            }
         }
         Err(e) => error!(error = %e, "Task panicked"),
     }

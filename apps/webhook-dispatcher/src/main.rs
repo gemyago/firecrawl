@@ -1,3 +1,5 @@
+#![feature(ip)]
+
 mod config;
 mod consumer;
 mod dispatcher;
@@ -30,7 +32,26 @@ async fn main() -> Result<()> {
 
     let consumer_handle = tokio::spawn(async move { consumer::run(config, shutdown_rx).await });
 
-    signal::ctrl_c().await?;
+    tokio::select! {
+        _ = signal::ctrl_c() => {
+            info!("Received SIGINT (Ctrl+C)");
+        }
+        _ = async {
+            #[cfg(unix)]
+            {
+                signal::unix::signal(signal::unix::SignalKind::terminate())
+                    .expect("Failed to install SIGTERM handler")
+                    .recv()
+                    .await
+            }
+            #[cfg(not(unix))]
+            {
+                std::future::pending::<()>().await
+            }
+        } => {
+            info!("Received SIGTERM");
+        }
+    }
     info!("Shutdown signal received");
 
     let _ = shutdown_tx.send(());

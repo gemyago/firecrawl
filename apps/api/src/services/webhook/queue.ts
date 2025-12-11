@@ -119,9 +119,22 @@ class WebhookQueue {
         teamId: message.team_id,
         jobId: message.job_id,
       });
-      await new Promise<void>(resolve => {
-        this.channel!.once("drain", () => resolve());
-      });
+      await Promise.race([
+        new Promise<void>(resolve => {
+          this.channel!.once("drain", () => resolve());
+        }),
+        new Promise<void>((_, reject) => {
+          this.channel!.once("close", () =>
+            reject(new Error("Channel closed while waiting for drain")),
+          );
+        }),
+        new Promise<void>((_, reject) => {
+          this.channel!.once("error", err => reject(err));
+        }),
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error("Drain timeout after 30s")), 30000),
+        ),
+      ]);
     }
 
     _logger.info("Webhook message published to queue", {
