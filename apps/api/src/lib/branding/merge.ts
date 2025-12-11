@@ -144,9 +144,19 @@ export function mergeBrandingResults(
           };
         } else {
           // Log why we're not including the logo
+          let rejectionReason = "Low confidence";
+          if (hasRedFlags) {
+            const redFlagReasons: string[] = [];
+            if (isLanguageWord) redFlagReasons.push("language word");
+            if (isCommonMenuWord) redFlagReasons.push("menu word");
+            if (isUIIcon) redFlagReasons.push("UI icon");
+            if (isSmallSquareIcon) redFlagReasons.push("small square icon");
+            if (isExternalLink) redFlagReasons.push("external link");
+            rejectionReason = `Red flags detected (${redFlagReasons.join(", ")})`;
+          }
           (merged as any).__llm_logo_reasoning = {
             selectedIndex: llm.logoSelection.selectedLogoIndex,
-            reasoning: `Logo rejected: ${hasRedFlags ? "Red flags detected (language/menu word)" : "Low confidence"}. ${llm.logoSelection.selectedLogoReasoning}`,
+            reasoning: `Logo rejected: ${rejectionReason}. ${llm.logoSelection.selectedLogoReasoning}`,
             confidence: llm.logoSelection.confidence,
             rejected: true,
           };

@@ -343,11 +343,12 @@ export function selectLogoWithConfidence(
     } else if (area < 500) {
       score -= 8;
       reasons.push("too small (likely icon, penalty)");
+    } else if (area >= 50000 && area <= 200000) {
+      score -= 10;
+      reasons.push("too large (likely banner/og:image, penalty)");
     } else if (area > 200000) {
       score -= 20;
       reasons.push("extremely large (likely og:image, heavy penalty)");
-      score -= 10;
-      reasons.push("too large (likely banner/og:image, penalty)");
     }
     const isSquare = Math.abs(width - height) < 5;
     if (isSquare && (width < 40 || height < 40)) {

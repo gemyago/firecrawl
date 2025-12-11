@@ -153,6 +153,28 @@ export async function brandingTransformer(
       if (llmOriginalIndex !== undefined) {
         // Update the selection with the original index
         llmEnhancement.logoSelection.selectedLogoIndex = llmOriginalIndex;
+      } else {
+        // LLM returned invalid index - fallback to heuristic
+        meta.logger.warn(
+          "LLM returned invalid logo index, falling back to heuristic",
+          {
+            llmFilteredIndex,
+            indexMapSize: indexMap.size,
+            validIndices: Array.from(indexMap.keys()),
+            heuristicIndex: heuristicResult?.selectedIndex,
+          },
+        );
+        // Use heuristic result if available, otherwise clear LLM selection
+        if (heuristicResult) {
+          llmEnhancement.logoSelection = {
+            selectedLogoIndex: heuristicResult.selectedIndex,
+            selectedLogoReasoning: `Heuristic fallback (LLM returned invalid index): ${heuristicResult.reasoning}`,
+            confidence: Math.max(heuristicResult.confidence - 0.1, 0.3), // Slightly lower confidence
+          };
+        } else {
+          // No heuristic result available - clear LLM selection
+          llmEnhancement.logoSelection = undefined;
+        }
       }
     }
 

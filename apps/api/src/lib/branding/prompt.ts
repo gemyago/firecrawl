@@ -372,11 +372,17 @@ export function buildBrandingPrompt(input: BrandingLLMInput): string {
   prompt += `\n## ⚠️ CRITICAL: YOU MUST RETURN ALL REQUIRED FIELDS\n`;
   prompt += `The response schema REQUIRES these fields. DO NOT return empty objects {}.\n`;
   prompt += `\n**REQUIRED FIELDS:**\n`;
-  prompt += `1. buttonClassification: { primaryButtonIndex, primaryButtonReasoning, secondaryButtonIndex, secondaryButtonReasoning, confidence }\n`;
-  prompt += `2. colorRoles: { primaryColor, accentColor, backgroundColor, textPrimary, confidence }\n`;
-  prompt += `3. cleanedFonts: [] (array, can be empty but must be present)\n`;
+  let fieldNumber = 1;
+  if (buttons && buttons.length > 0) {
+    prompt += `${fieldNumber}. buttonClassification: { primaryButtonIndex, primaryButtonReasoning, secondaryButtonIndex, secondaryButtonReasoning, confidence }\n`;
+    fieldNumber++;
+  }
+  prompt += `${fieldNumber}. colorRoles: { primaryColor, accentColor, backgroundColor, textPrimary, confidence }\n`;
+  fieldNumber++;
+  prompt += `${fieldNumber}. cleanedFonts: [] (array, can be empty but must be present)\n`;
   if (logoCandidates && logoCandidates.length > 0) {
-    prompt += `4. logoSelection: { selectedLogoIndex, selectedLogoReasoning, confidence }\n`;
+    fieldNumber++;
+    prompt += `${fieldNumber}. logoSelection: { selectedLogoIndex, selectedLogoReasoning, confidence }\n`;
   }
   prompt += `\n**DO NOT** return empty objects {}. Fill in ALL fields with actual values or -1/null as appropriate.\n`;
 
