@@ -154,9 +154,13 @@ export function mergeBrandingResults(
             if (isExternalLink) redFlagReasons.push("external link");
             rejectionReason = `Red flags detected (${redFlagReasons.join(", ")})`;
           }
+          const selectedLogoReasoning =
+            llm.logoSelection.selectedLogoReasoning?.trim() || "";
           (merged as any).__llm_logo_reasoning = {
             selectedIndex: llm.logoSelection.selectedLogoIndex,
-            reasoning: `Logo rejected: ${rejectionReason}. ${llm.logoSelection.selectedLogoReasoning}`,
+            reasoning: selectedLogoReasoning
+              ? `Logo rejected: ${rejectionReason}. ${selectedLogoReasoning}`
+              : `Logo rejected: ${rejectionReason}.`,
             confidence: llm.logoSelection.confidence,
             rejected: true,
           };
