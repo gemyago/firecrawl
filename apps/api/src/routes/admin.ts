@@ -19,6 +19,7 @@ import { integValidateApiKeyController } from "../controllers/v0/admin/validate-
 import { integRotateApiKeyController } from "../controllers/v0/admin/rotate-api-key";
 import { crawlMonitorController } from "../controllers/v0/admin/crawl-monitor";
 import { RateLimiterMode } from "../types";
+import { checkChangeTrackingController } from "../controllers/v0/admin/check-change-tracking";
 
 export const adminRouter = express.Router();
 
@@ -94,4 +95,9 @@ adminRouter.post(
 adminRouter.post(
   `/admin/integration/rotate-api-key`,
   wrap(integRotateApiKeyController),
+);
+
+adminRouter.post(
+  `/admin/${config.BULL_AUTH_KEY}/change-tracking-health`,
+  wrap(checkChangeTrackingController),
 );
