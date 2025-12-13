@@ -7,7 +7,7 @@ on:
   push:
     branches:
       - main
-      - feature/community-manager
+      - feature/multiarch-docker
     paths:
       - apps/api/**
   workflow_dispatch:
