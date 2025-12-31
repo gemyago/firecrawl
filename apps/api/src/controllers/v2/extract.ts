@@ -6,12 +6,13 @@ import {
   extractRequestSchema,
   ExtractResponse,
 } from "./types";
-import { getExtractQueue } from "../../services/queue-service";
+import { addExtractJobToQueue } from "../../services/queue-service";
 import { saveExtract } from "../../lib/extract/extract-redis";
 import { BLOCKLISTED_URL_MESSAGE } from "../../lib/strings";
 import { isUrlBlocked } from "../../scraper/WebScraper/utils/blocklist";
 import { logger as _logger } from "../../lib/logger";
 import { logRequest } from "../../services/logging/log_job";
+import { config } from "../../config";
 
 /**
  * Extracts data from the provided URLs based on the request parameters.
@@ -35,6 +36,25 @@ export async function extractController(
     });
   }
 
+  const extractId = uuidv7();
+  const createdAt = Date.now();
+  _logger.info("Extract starting...", {
+    request: req.body,
+    originalRequest,
+    teamId: req.auth.team_id,
+    team_id: req.auth.team_id,
+    subId: req.acuc?.sub_id,
+    extractId,
+    zeroDataRetention: req.acuc?.flags?.forceZDR,
+  });
+
+  if (req.body.agent?.model === "v3-beta") {
+    return res.status(400).json({
+      success: false,
+      error: "Use the new /agent endpoint instead of passing agent.model=v3-beta into /extract.",
+    });
+  }
+
   const invalidURLs: string[] =
     req.body.urls?.filter((url: string) =>
       isUrlBlocked(url, req.acuc?.flags ?? null),
@@ -48,18 +68,6 @@ export async function extractController(
       });
     }
   }
-
-  const extractId = uuidv7();
-  const createdAt = Date.now();
-  _logger.info("Extract starting...", {
-    request: req.body,
-    originalRequest,
-    teamId: req.auth.team_id,
-    team_id: req.auth.team_id,
-    subId: req.acuc?.sub_id,
-    extractId,
-    zeroDataRetention: req.acuc?.flags?.forceZDR,
-  });
 
   await logRequest({
     id: extractId,
@@ -94,8 +102,9 @@ export async function extractController(
     zeroDataRetention: req.acuc?.flags?.forceZDR,
   });
 
-  await getExtractQueue().add(extractId, jobData, {
-    jobId: extractId,
+  await addExtractJobToQueue(extractId, {
+    ...jobData,
+    apiKeyId: req.acuc?.api_key_id ?? undefined,
   });
 
   return res.status(200).json({
@@ -104,8 +113,8 @@ export async function extractController(
     urlTrace: [],
     ...(invalidURLs.length > 0 && req.body.ignoreInvalidURLs
       ? {
-          invalidURLs,
-        }
+        invalidURLs,
+      }
       : {}),
   });
 }

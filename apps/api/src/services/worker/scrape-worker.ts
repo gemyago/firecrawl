@@ -53,6 +53,7 @@ import { getBillingQueue } from "../queue-service";
 import type { Logger } from "winston";
 import {
   CrawlDenialError,
+  JobCancelledError,
   RacedRedirectError,
   ScrapeJobTimeoutError,
   TransportableError,
@@ -197,7 +198,7 @@ async function processJob(job: NuQJob<ScrapeJobSingleUrls>) {
     if (job.data.crawl_id) {
       const sc = (await getCrawl(job.data.crawl_id)) as StoredCrawl;
       if (sc && sc.cancelled) {
-        throw new Error("Parent crawl/batch scrape was cancelled");
+        throw new JobCancelledError();
       }
     }
 
@@ -271,19 +272,26 @@ async function processJob(job: NuQJob<ScrapeJobSingleUrls>) {
     if (job.data.crawl_id) {
       const sc = (await getCrawl(job.data.crawl_id)) as StoredCrawl;
 
+      let crawler: WebCrawler | null = null;
+      if (job.data.crawlerOptions !== null) {
+        const teamFlags = (await getACUCTeam(job.data.team_id))?.flags ?? null;
+        crawler = crawlToCrawler(
+          job.data.crawl_id,
+          sc,
+          teamFlags,
+          sc.originUrl!,
+          job.data.crawlerOptions,
+        );
+      }
+
       if (
         doc.metadata.url !== undefined &&
         doc.metadata.sourceURL !== undefined &&
         normalizeURL(doc.metadata.url, sc) !==
           normalizeURL(doc.metadata.sourceURL, sc) &&
-        job.data.crawlerOptions !== null // only on crawls, don't care on batch scrape
+        crawler // only on crawls, don't care on batch scrape
       ) {
-        const crawler = crawlToCrawler(
-          job.data.crawl_id,
-          sc,
-          (await getACUCTeam(job.data.team_id))?.flags ?? null,
-        );
-        const filterResult = await crawler.filterURL(
+        const filterResult = await crawler!.filterURL(
           doc.metadata.url,
           doc.metadata.sourceURL,
         );
@@ -342,14 +350,10 @@ async function processJob(job: NuQJob<ScrapeJobSingleUrls>) {
         }
       }
 
-      if (job.data.crawlerOptions !== null) {
+      if (crawler) {
         if (!sc.cancelled) {
-          const crawler = crawlToCrawler(
-            job.data.crawl_id,
-            sc,
-            (await getACUCTeam(job.data.team_id))?.flags ?? null,
+          crawler.setBaseUrl(
             doc.metadata.url ?? doc.metadata.sourceURL ?? sc.originUrl!,
-            job.data.crawlerOptions,
           );
 
           const links = await crawler.filterLinks(
@@ -588,9 +592,7 @@ async function processJob(job: NuQJob<ScrapeJobSingleUrls>) {
     }
 
     const isEarlyTimeout = error instanceof ScrapeJobTimeoutError;
-    const isCancelled =
-      error instanceof Error &&
-      error.message === "Parent crawl/batch scrape was cancelled";
+    const isCancelled = error instanceof JobCancelledError;
 
     if (isEarlyTimeout) {
       logger.error(`🐂 Job timed out ${job.id}`);
@@ -1195,8 +1197,15 @@ async function processJobWithTracing(job: NuQJob<ScrapeJobData>, logger: any) {
   } catch (error) {
     logger.warn("Job failed", { error });
 
-    // Filter out TransportableErrors (flow control)
-    if (!(error instanceof TransportableError)) {
+    // Filter out expected errors (flow control, not real errors)
+    if (
+      error instanceof TransportableError ||
+      error instanceof JobCancelledError ||
+      error instanceof RacedRedirectError ||
+      error instanceof ScrapeJobTimeoutError
+    ) {
+      // These are expected flow control errors, don't send to Sentry
+    } else {
       captureExceptionWithZdrCheck(error, {
         extra: { zeroDataRetention: job.data.zeroDataRetention ?? false },
       });
@@ -1218,6 +1227,8 @@ const exitHandler = () => {
   process.exit(0);
 };
 
-process.on("SIGINT", exitHandler);
-process.on("SIGTERM", exitHandler);
-process.on("exit", exitHandler);
+if (require.main === module) {
+  process.on("SIGINT", exitHandler);
+  process.on("SIGTERM", exitHandler);
+  process.on("exit", exitHandler);
+}

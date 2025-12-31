@@ -72,6 +72,7 @@ export class WebCrawler {
   private currentDiscoveryDepth: number;
   private zeroDataRetention: boolean;
   private location?: ScrapeOptions["location"];
+  private headers?: Record<string, string>;
 
   constructor({
     jobId,
@@ -92,6 +93,7 @@ export class WebCrawler {
     currentDiscoveryDepth,
     zeroDataRetention,
     location,
+    headers,
   }: {
     jobId: string;
     initialUrl: string;
@@ -111,6 +113,7 @@ export class WebCrawler {
     currentDiscoveryDepth?: number;
     zeroDataRetention?: boolean;
     location?: ScrapeOptions["location"];
+    headers?: Record<string, string>;
   }) {
     this.jobId = jobId;
     this.initialUrl = initialUrl;
@@ -139,6 +142,12 @@ export class WebCrawler {
     this.maxDiscoveryDepth = maxDiscoveryDepth;
     this.currentDiscoveryDepth = currentDiscoveryDepth ?? 0;
     this.location = location;
+    this.headers = headers;
+  }
+
+  public setBaseUrl(newBase: string): void {
+    this.baseUrl = newBase;
+    this.robotsTxtUrl = `${this.baseUrl}${this.baseUrl.endsWith("/") ? "" : "/"}robots.txt`;
   }
 
   public async filterLinks(
@@ -411,7 +420,7 @@ export class WebCrawler {
     this.robotsCrawlDelay = delay !== undefined ? delay : null;
 
     const sitemaps = this.robots.getSitemaps();
-    this.logger.debug("Processed robots.txt", {
+    this.logger.debug("Imported robots.txt", {
       method: "importRobotsTxt",
       robotsTxtUrl: this.robotsTxtUrl,
       robotsTxtLength: txt.length,
@@ -739,6 +748,7 @@ export class WebCrawler {
           maxAge,
           zeroDataRetention: this.zeroDataRetention,
           location: this.location,
+          headers: this.headers,
         },
         this.logger,
         this.jobId,
@@ -797,6 +807,7 @@ export class WebCrawler {
                 maxAge,
                 zeroDataRetention: this.zeroDataRetention,
                 location: this.location,
+                headers: this.headers,
               },
               this.logger,
               this.jobId,
@@ -840,6 +851,7 @@ export class WebCrawler {
             maxAge,
             zeroDataRetention: this.zeroDataRetention,
             location: this.location,
+            headers: this.headers,
           },
           this.logger,
           this.jobId,
@@ -867,6 +879,7 @@ export class WebCrawler {
                 maxAge,
                 zeroDataRetention: this.zeroDataRetention,
                 location: this.location,
+                headers: this.headers,
               },
               this.logger,
               this.jobId,

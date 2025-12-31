@@ -16,6 +16,7 @@ import { hasFormatOfType } from "../../lib/format-utils";
 import type { Document, ScrapeOptions } from "../../controllers/v2/types";
 import type { CostTracking } from "../../lib/cost-tracking";
 import type { Logger } from "winston";
+import { saveExtractResult } from "../../lib/extract/extract-redis";
 configDotenv();
 
 const previewTeamId = "3adefd26-77ec-5968-8dcf-c94b5630d1de";
@@ -152,7 +153,8 @@ type LoggedRequest = {
     | "extract"
     | "llmstxt"
     | "deep_research"
-    | "map";
+    | "map"
+    | "agent";
   api_version: string;
   team_id: string;
   origin?: string;
@@ -425,7 +427,9 @@ export async function logSearch(search: LoggedSearch, force: boolean = false) {
         search.team_id === "preview" || search.team_id?.startsWith("preview_")
           ? previewTeamId
           : search.team_id,
-      options: search.zeroDataRetention ? null : search.options,
+      options: search.zeroDataRetention
+        ? { enterprise: search.options?.enterprise }
+        : search.options,
       credits_cost: search.credits_cost,
       is_successful: search.is_successful,
       error: search.zeroDataRetention ? null : (search.error ?? null),
@@ -489,7 +493,12 @@ export async function logExtract(
   );
 
   if (extract.result) {
-    await saveExtractToGCS(extract);
+    if (config.GCS_BUCKET_NAME) {
+      await saveExtractToGCS(extract);
+    } else {
+      // Fallback: save result to Redis with 24h TTL when GCS is not configured
+      await saveExtractResult(extract.id, extract.result);
+    }
   }
 }
 

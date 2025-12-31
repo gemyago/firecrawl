@@ -36,6 +36,9 @@ import { creditUsageHistoricalController } from "../controllers/v2/credit-usage-
 import { tokenUsageHistoricalController } from "../controllers/v2/token-usage-historical";
 import { paymentMiddleware } from "x402-express";
 import { facilitator } from "@coinbase/x402";
+import { agentController } from "../controllers/v2/agent";
+import { agentStatusController } from "../controllers/v2/agent-status";
+import { agentCancelController } from "../controllers/v2/agent-cancel";
 
 expressWs(express());
 
@@ -297,6 +300,29 @@ v2Router.get(
   authMiddleware(RateLimiterMode.ExtractStatus),
   validateJobIdParam,
   wrap(extractStatusController),
+);
+
+v2Router.post(
+  "/agent",
+  authMiddleware(RateLimiterMode.Extract),
+  countryCheck,
+  checkCreditsMiddleware(20),
+  blocklistMiddleware,
+  wrap(agentController),
+);
+
+v2Router.get(
+  "/agent/:jobId",
+  authMiddleware(RateLimiterMode.ExtractStatus),
+  validateJobIdParam,
+  wrap(agentStatusController),
+);
+
+v2Router.delete(
+  "/agent/:jobId",
+  authMiddleware(RateLimiterMode.ExtractStatus),
+  validateJobIdParam,
+  wrap(agentCancelController),
 );
 
 v2Router.get(

@@ -125,3 +125,61 @@ export const supabaseGetExtractByIdDirect = async (extractId: string) => {
 
   return data;
 };
+
+export const supabaseGetExtractRequestByIdDirect = async (
+  extractId: string,
+) => {
+  const { data, error } = await supabase_service
+    .from("requests")
+    .select("*")
+    .eq("id", extractId)
+    .in("kind", ["extract", "agent"])
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return data;
+};
+
+export const supabaseGetAgentRequestByIdDirect = async (agentId: string) => {
+  const { data, error } = await supabase_service
+    .from("requests")
+    .select("*")
+    .eq("id", agentId)
+    .eq("kind", "agent")
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return data;
+};
+
+export const supabaseGetAgentByIdDirect = async (agentId: string) => {
+  const { data, error } = await supabase_service
+    .from("agents")
+    .select("*")
+    .eq("id", agentId)
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return data;
+};

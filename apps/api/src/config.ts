@@ -97,6 +97,9 @@ const configSchema = z.object({
   EXTRACT_WORKER_PORT: z.coerce.number().default(3004),
   NUQ_WAIT_MODE: z.string().optional(),
 
+  // Harness Configuration
+  HARNESS_STARTUP_TIMEOUT_MS: z.coerce.number().default(60000),
+
   // Job & Lock Management
   JOB_LOCK_EXTEND_INTERVAL: z.coerce.number().default(10000),
   JOB_LOCK_EXTENSION_TIME: z.coerce.number().default(60000),
@@ -189,6 +192,9 @@ const configSchema = z.object({
   GITHUB_REF_NAME: z.string().optional(),
   RESTRICTED_COUNTRIES: delimitedList(",").optional(),
   DISABLE_ENGPICKER: z.stringbool().optional(),
+
+  EXTRACT_V3_BETA_URL: z.string().optional(),
+  AGENT_INTEROP_SECRET: z.string().optional(),
 });
 
 export const config = configSchema.parse(process.env);

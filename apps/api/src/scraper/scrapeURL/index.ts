@@ -67,6 +67,7 @@ import {
   createRobotsChecker,
   isUrlAllowedByRobots,
 } from "../../lib/robots-txt";
+import { getCrawl } from "../../lib/crawl-redis";
 import {
   AbortInstance,
   AbortManager,
@@ -347,19 +348,33 @@ async function scrapeURLLoopIter(
       engine,
     );
 
+    const hasMarkdown = hasFormatOfType(meta.options.formats, "markdown");
+    const hasChangeTracking = hasFormatOfType(
+      meta.options.formats,
+      "changeTracking",
+    );
+    const hasJson = hasFormatOfType(meta.options.formats, "json");
+    const hasSummary = hasFormatOfType(meta.options.formats, "summary");
+    const needsMarkdown =
+      hasMarkdown || hasChangeTracking || hasJson || hasSummary;
+
     let checkMarkdown: string;
     if (
       meta.internalOptions.teamId === "sitemap" ||
       meta.internalOptions.teamId === "robots-txt"
     ) {
       checkMarkdown = engineResult.html?.trim() ?? "";
+    } else if (!needsMarkdown) {
+      checkMarkdown = engineResult.html?.trim() ?? "";
     } else {
+      const requestId = meta.id || meta.internalOptions.crawlId;
       checkMarkdown = await parseMarkdown(
         await htmlTransform(
           engineResult.html,
           meta.url,
           scrapeOptions.parse({ onlyMainContent: true }),
         ),
+        { logger: meta.logger, requestId },
       );
 
       if (checkMarkdown.trim().length === 0) {
@@ -369,6 +384,7 @@ async function scrapeURLLoopIter(
             meta.url,
             scrapeOptions.parse({ onlyMainContent: false }),
           ),
+          { logger: meta.logger, requestId },
         );
       }
     }
@@ -874,16 +890,25 @@ export async function scrapeURL(
 
         if (!isRobotsTxtPath) {
           try {
-            const { content: robotsTxt } = await fetchRobotsTxt(
-              {
-                url: urlToCheck,
-                zeroDataRetention: internalOptions.zeroDataRetention || false,
-                location: options.location,
-              },
-              id,
-              meta.logger,
-              meta.abort.asSignal(),
-            );
+            let robotsTxt: string | undefined;
+            if (internalOptions.crawlId) {
+              const crawl = await getCrawl(internalOptions.crawlId);
+              robotsTxt = crawl?.robots;
+            }
+
+            if (!robotsTxt) {
+              const { content } = await fetchRobotsTxt(
+                {
+                  url: urlToCheck,
+                  zeroDataRetention: internalOptions.zeroDataRetention || false,
+                  location: options.location,
+                },
+                id,
+                meta.logger,
+                meta.abort.asSignal(),
+              );
+              robotsTxt = content;
+            }
 
             const checker = createRobotsChecker(urlToCheck, robotsTxt);
             const isAllowed = isUrlAllowedByRobots(urlToCheck, checker.robots);
@@ -1098,11 +1123,18 @@ export async function scrapeURL(
         meta.logger.debug("scrapeURL index metrics", {
           module: "scrapeURL/index-metrics",
           timeTaken: Date.now() - startTime,
-          changeTracking: hasFormatOfType(
+          changeTrackingEnabled: !!hasFormatOfType(
             meta.options.formats,
             "changeTracking",
           ),
-          branding: hasFormatOfType(meta.options.formats, "branding"),
+          summaryEnabled: !!hasFormatOfType(meta.options.formats, "summary"),
+          jsonEnabled: !!hasFormatOfType(meta.options.formats, "json"),
+          screenshotEnabled: !!hasFormatOfType(
+            meta.options.formats,
+            "screenshot",
+          ),
+          imagesEnabled: !!hasFormatOfType(meta.options.formats, "images"),
+          brandingEnabled: !!hasFormatOfType(meta.options.formats, "branding"),
           pdfMaxPages: getPDFMaxPages(meta.options.parsers),
           maxAge: meta.options.maxAge,
           headers: meta.options.headers
@@ -1141,11 +1173,18 @@ export async function scrapeURL(
         meta.logger.debug("scrapeURL index metrics", {
           module: "scrapeURL/index-metrics",
           timeTaken: Date.now() - startTime,
-          changeTracking: hasFormatOfType(
+          changeTrackingEnabled: !!hasFormatOfType(
             meta.options.formats,
             "changeTracking",
           ),
-          branding: hasFormatOfType(meta.options.formats, "branding"),
+          summaryEnabled: !!hasFormatOfType(meta.options.formats, "summary"),
+          jsonEnabled: !!hasFormatOfType(meta.options.formats, "json"),
+          screenshotEnabled: !!hasFormatOfType(
+            meta.options.formats,
+            "screenshot",
+          ),
+          imagesEnabled: !!hasFormatOfType(meta.options.formats, "images"),
+          brandingEnabled: !!hasFormatOfType(meta.options.formats, "branding"),
           pdfMaxPages: getPDFMaxPages(meta.options.parsers),
           maxAge: meta.options.maxAge,
           headers: meta.options.headers

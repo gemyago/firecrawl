@@ -25,9 +25,9 @@ x-common-env: &common-env
   REDIS_URL: ${REDIS_URL:-redis://redis:6379}
   REDIS_RATE_LIMIT_URL: ${REDIS_URL:-redis://redis:6379}
   PLAYWRIGHT_MICROSERVICE_URL: ${PLAYWRIGHT_MICROSERVICE_URL:-http://playwright-service:3000/scrape}
-  POSTGRES_USER: ${POSTGRES_USER:-firecrawl}
-  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-firecrawl_password}"
-  POSTGRES_DB: ${POSTGRES_DB:-firecrawl}
+  POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+  POSTGRES_DB: ${POSTGRES_DB:-postgres}
   POSTGRES_HOST: ${POSTGRES_HOST:-nuq-postgres}
   POSTGRES_PORT: ${POSTGRES_PORT:-5432}
   USE_DB_AUTHENTICATION: ${USE_DB_AUTHENTICATION:-false}
@@ -92,10 +92,15 @@ services:
       PORT: ${INTERNAL_PORT:-3002}
       EXTRACT_WORKER_PORT: ${EXTRACT_WORKER_PORT:-3004}
       WORKER_PORT: ${WORKER_PORT:-3005}
+      NUQ_RABBITMQ_URL: amqp://rabbitmq:5672
       ENV: local
     depends_on:
-      - redis
-      - playwright-service
+      redis:
+        condition: service_started
+      playwright-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "${PORT:-3002}:${INTERNAL_PORT:-3002}"
     command: node dist/src/harness.js --start-docker
@@ -121,13 +126,31 @@ services:
         max-size: "5m"
         max-file: "2"
         compress: "true"
+    
+  rabbitmq:
+    image: rabbitmq:3-management
+    networks:
+      - backend
+    command: rabbitmq-server
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+        compress: "true"
   
   nuq-postgres:
     build: apps/nuq-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-firecrawl}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-firecrawl_password}
-      POSTGRES_DB: ${POSTGRES_DB:-firecrawl}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     networks:
       - backend
     logging:

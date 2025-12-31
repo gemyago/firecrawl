@@ -231,7 +231,7 @@ class DocumentMetadata(BaseModel):
 class AgentOptions(BaseModel):
     """Configuration for the agent in extract operations."""
 
-    model: Literal["FIRE-1"] = "FIRE-1"
+    model: Literal["FIRE-1", "v3-beta"] = "FIRE-1"
 
 
 class AttributeResult(BaseModel):
@@ -777,6 +777,18 @@ class ExtractResponse(BaseModel):
     expires_at: Optional[datetime] = None
     credits_used: Optional[int] = None
     tokens_used: Optional[int] = None
+
+
+class AgentResponse(BaseModel):
+    """Response for agent operations (start/status/final)."""
+
+    success: Optional[bool] = None
+    id: Optional[str] = None
+    status: Optional[Literal["processing", "completed", "failed"]] = None
+    data: Optional[Any] = None
+    error: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    credits_used: Optional[int] = None
 
 # Usage/limits types
 class ConcurrencyCheck(BaseModel):

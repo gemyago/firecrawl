@@ -19,13 +19,13 @@ import {
 import type { InternalOptions } from "../../scraper/scrapeURL";
 import { ErrorCodes } from "../../lib/error";
 import Ajv from "ajv";
+import addFormats from "ajv-formats";
 import { integrationSchema } from "../../utils/integration";
 import { webhookSchema } from "../../services/webhook/schema";
-import { modifyCrawlUrl } from "../../utils/url-utils";
 import { BrandingProfile } from "../../types/branding";
 
 // Base URL schema with common validation logic
-const BASE_URL_SCHEMA = z.preprocess(
+export const URL = z.preprocess(
   x => {
     if (!protocolIncluded(x as string)) {
       x = `http://${x}`;
@@ -70,12 +70,6 @@ const BASE_URL_SCHEMA = z.preprocess(
     }, "Invalid URL"),
   // .refine((x) => !isUrlBlocked(x as string), BLOCKLISTED_URL_MESSAGE),
 );
-
-// Standard URL schema
-export const URL = BASE_URL_SCHEMA;
-
-// Crawl URL schema with modification handling
-const CRAWL_URL = BASE_URL_SCHEMA.transform(url => modifyCrawlUrl(url));
 
 const strictMessage =
   "Unrecognized key in body -- please review the v2 API documentation for request body changes";
@@ -642,6 +636,8 @@ export type BaseScrapeOptions = z.infer<typeof baseScrapeOptions>;
 export type ScrapeOptions = BaseScrapeOptions;
 
 const ajv = new Ajv();
+const agentAjv = new Ajv();
+addFormats(agentAjv);
 
 const extractOptions = z
   .strictObject({
@@ -715,11 +711,52 @@ export const extractRequestSchema = extractOptions;
 export type ExtractRequest = z.infer<typeof extractRequestSchema>;
 export type ExtractRequestInput = z.input<typeof extractRequestSchema>;
 
+export const agentRequestSchema = z.strictObject({
+  urls: URL.array().optional(),
+  prompt: z.string().max(10000),
+  schema: z
+    .any()
+    .optional()
+    .superRefine((val, ctx) => {
+      if (!val) return; // Allow undefined schema
+      try {
+        agentAjv.compile(val);
+      } catch (e) {
+        const message =
+          e instanceof Error
+            ? e.message
+            : typeof e === "string"
+              ? e
+              : "Unknown error";
+        ctx.addIssue({
+          code: "custom",
+          message: `Invalid JSON schema: ${message}`,
+        });
+      }
+    }),
+  origin: z.string().optional().prefault("api"),
+  integration: integrationSchema.optional().transform(val => val || null),
+  maxCredits: z.number().optional(),
+  strictConstrainToURLs: z.boolean().optional(),
+
+  overrideWhitelist: z.string().optional(),
+});
+
+export type AgentRequest = z.infer<typeof agentRequestSchema>;
+// export type AgentRequestInput = z.input<typeof agentRequestSchema>;
+
 const scrapeRequestSchemaBase = baseScrapeOptions.extend({
   url: URL,
   origin: z.string().optional().prefault("api"),
   integration: integrationSchema.optional().transform(val => val || null),
   zeroDataRetention: z.boolean().optional(),
+  __agentInterop: z
+    .object({
+      auth: z.string(),
+      requestId: z.string(),
+      shouldBill: z.boolean(),
+    })
+    .optional(),
 });
 
 export const scrapeRequestSchema = strictWithMessage(scrapeRequestSchemaBase)
@@ -751,6 +788,13 @@ const batchScrapeRequestSchemaBase = baseScrapeOptions.extend({
   ignoreInvalidURLs: z.boolean().prefault(true),
   maxConcurrency: z.int().positive().optional(),
   zeroDataRetention: z.boolean().optional(),
+  __agentInterop: z
+    .object({
+      auth: z.string(),
+      requestId: z.string(),
+      shouldBill: z.boolean(),
+    })
+    .optional(),
 });
 
 export const batchScrapeRequestSchema = strictWithMessage(
@@ -768,6 +812,13 @@ const batchScrapeRequestSchemaNoURLValidationBase = baseScrapeOptions.extend({
   ignoreInvalidURLs: z.boolean().prefault(true),
   maxConcurrency: z.int().positive().optional(),
   zeroDataRetention: z.boolean().optional(),
+  __agentInterop: z
+    .object({
+      auth: z.string(),
+      requestId: z.string(),
+      shouldBill: z.boolean(),
+    })
+    .optional(),
 });
 
 export const batchScrapeRequestSchemaNoURLValidation = strictWithMessage(
@@ -824,7 +875,7 @@ export const crawlerOptions = z.strictObject({
 type CrawlerOptions = z.infer<typeof crawlerOptions>;
 
 const crawlRequestSchemaBase = crawlerOptions.extend({
-  url: CRAWL_URL,
+  url: URL,
   origin: z.string().optional().prefault("api"),
   integration: integrationSchema.optional().transform(val => val || null),
   scrapeOptions: baseScrapeOptions.prefault(() => baseScrapeOptions.parse({})),
@@ -841,7 +892,7 @@ export const crawlRequestSchema = strictWithMessage(crawlRequestSchemaBase)
     const scrapeOptionsValue = x.scrapeOptions ?? baseScrapeOptions.parse({});
     return {
       ...x,
-      url: x.url.url, // Extract the actual URL from the CRAWL_URL result
+      url: x.url,
       scrapeOptions: extractTransformRequired(scrapeOptionsValue),
     };
   });
@@ -879,6 +930,7 @@ const mapRequestSchemaBase = crawlerOptions
     filterByPath: z.boolean().prefault(true),
     useIndex: z.boolean().prefault(true),
     location: locationSchema,
+    headers: z.record(z.string(), z.string()).optional(),
   });
 
 export const mapRequestSchema = strictWithMessage(mapRequestSchemaBase);
@@ -1053,13 +1105,36 @@ export interface ExtractResponse {
   creditsUsed?: number;
 }
 
+export type AgentResponse =
+  | ErrorResponse
+  | {
+      success: boolean;
+      id: string;
+    };
+
+export type AgentStatusResponse =
+  | ErrorResponse
+  | {
+      success: boolean;
+      status: "processing" | "completed" | "failed";
+      error?: string;
+      data?: any;
+      expiresAt: string;
+      creditsUsed?: number;
+    };
+
+export type AgentCancelResponse =
+  | ErrorResponse
+  | {
+      success: boolean;
+    };
+
 export type CrawlResponse =
   | ErrorResponse
   | {
       success: true;
       id: string;
       url: string;
-      warning?: string;
     };
 
 export type BatchScrapeResponse =
@@ -1161,6 +1236,7 @@ export type TeamFlags = {
   allowTeammateInvites?: boolean;
   crawlTtlHours?: number;
   ipWhitelist?: boolean;
+  bypassCreditChecks?: boolean;
 } | null;
 
 interface RequestWithMaybeACUC<
@@ -1558,6 +1634,13 @@ export const searchRequestSchema = z
           }, "You may only specify one screenshot format"),
       })
       .optional(),
+    __agentInterop: z
+      .object({
+        auth: z.string(),
+        requestId: z.string(),
+        shouldBill: z.boolean(),
+      })
+      .optional(),
   })
   .refine(x => waitForRefine(x.scrapeOptions), waitForRefineOpts)
   .transform(x => {
@@ -1649,12 +1732,14 @@ export type SearchResponse =
       warning?: string;
       data: Document[];
       creditsUsed: number;
+      id: string;
     }
   | {
       success: true;
       warning?: string;
       data: import("../../lib/entities").SearchV2Response;
       creditsUsed: number;
+      id: string;
     }
   | {
       success: true;
@@ -1666,6 +1751,7 @@ export type SearchResponse =
         images?: string[];
       };
       creditsUsed: number;
+      id: string;
     };
 
 export type TokenUsage = {

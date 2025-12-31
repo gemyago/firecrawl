@@ -4,7 +4,10 @@ import { config } from "../config";
 import {
   AddFeatureError,
   RemoveFeatureError,
+  EngineError,
 } from "../scraper/scrapeURL/error";
+import { AbortManagerThrownError } from "../scraper/scrapeURL/lib/abortManager";
+import { JobCancelledError } from "../lib/error";
 
 type CaptureContext = {
   tags?: Record<string, string>;
@@ -57,15 +60,35 @@ if (config.SENTRY_DSN) {
       const error = hint?.originalException;
 
       if (error && typeof error === "object") {
-        // Filter out AddFeatureError and RemoveFeatureError
         if (
           error instanceof AddFeatureError ||
-          error instanceof RemoveFeatureError
+          error instanceof RemoveFeatureError ||
+          error instanceof AbortManagerThrownError ||
+          error instanceof EngineError ||
+          error instanceof JobCancelledError
         ) {
           return null;
         }
 
-        const errorCode = "code" in error ? String(error.code) : "";
+        // We sometimes rethrow TransportableErrors across process boundaries as a
+        // plain Error with message like `${code}|${json}` (see error-serde.ts).
+        // In that case, `error.code` is missing, so extract it from the message.
+        const errorCodeFromField = "code" in error ? String(error.code) : "";
+        const errorMessage =
+          error instanceof Error ? String(error.message || "") : "";
+
+        // Ignore cancellation errors (fallback for serialized errors)
+        if (
+          errorMessage === "Parent crawl/batch scrape was cancelled" ||
+          errorMessage.includes("Parent crawl/batch scrape was cancelled")
+        ) {
+          return null;
+        }
+
+        const errorCodeFromMessage =
+          errorCodeFromField ||
+          (errorMessage.includes("|") ? errorMessage.split("|", 1)[0] : "");
+        const errorCode = errorCodeFromMessage;
 
         const transportableErrorCodes = [
           "SCRAPE_ALL_ENGINES_FAILED",
